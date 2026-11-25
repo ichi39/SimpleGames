@@ -300,6 +300,7 @@ const ITEMS=[],IT={};
 function RC(spec){return spec.split('|').map(p=>{const q=p.split(':');return q[0]==='take'?{k:'take'}:q[0]==='top'?{k:'top',t:+q[1]||.6}:{k:'cook',st:q[0],t:+q[1]}})}
 function def(stage,day,id,name,price,cr,rows,pal,spec,labels){
   const it={id,name,price,cr,stage,day,steps:RC(spec),labels,rows};
+  it.steps.forEach((s,i)=>{s.label=labels[i]||''});
   it.spr=mk(id,rows,pal);it.sprBurnt=tint(it.spr,'#150a05',.72);it.sprGray=tint(it.spr,'#000000',.55);
   ITEMS.push(it);IT[id]=it;
 }
@@ -307,7 +308,7 @@ function def(stage,day,id,name,price,cr,rows,pal,spec,labels){
 def(1,1,'kebab','チキンケバブ',970,.38,KEBAB,null,'take|h1:5|top:.7',['ピタをとる','お肉をグリルで焼く','野菜とソースをのせる']);
 def(1,2,'salad','グリーンサラダ',650,.28,SALAD,null,'take|top:1',['お皿をとる','野菜をもってドレッシング']);
 def(1,3,'lassi','ラッシー',350,.2,LASSI,DRINKS.lassi,'take|h4:2',['グラスをとる','ミキサーでまぜる']);
-def(1,4,'naan','プレーンナン',350,.22,NAAN,null,'take|h2:5|top:.5',['生地をとる','タンドールで焼く','バターをぬる']);
+def(1,4,'naan','プレーンナン',350,.22,NAAN,null,'take|h2:5',['生地をとる','タンドールで焼く']);
 def(1,5,'curry','バターチキンカレー',1100,.3,CURRY,{c:'#e85a1e',C:'#f27a2c'},'take|h3:3.5|top:.7',['器をとる','おなべで煮こむ','クリームとパクチーをのせる']);
 def(1,6,'mango','マンゴーラッシー',450,.2,MANGO,DRINKS.mango,'take|h4:2|top:.5',['グラスをとる','ミキサーでまぜる','マンゴーをのせる']);
 def(1,7,'tandoori','タンドリーチキン',840,.4,TANDOORI,null,'take|h1:7|top:.6',['チキンをとる','グリルで焼く','レモンと玉ねぎをそえる']);
@@ -476,23 +477,78 @@ function calcGoal(d){
   const L=lvl(d),k=Math.min(un.length,L<=2?1:L<=4?1.4:L<=7?2:2.3);
   return Math.max(500,Math.round(c.dur/c.interval*avg*k*.34/100)*100);
 }
-// アップグレードの費用は、1日の手取りが少なめなのに合わせて低めに設定
+// ステージ1の10日間で買えるのは全体の1〜2割程度になるよう、費用は高めに設定
 const UPS=[
- {id:'cap',  name:'キッチン拡張',     desc:'各調理場の同時調理数 +1（店ごとにリセット）', cost:[1800]},
- {id:'tray', name:'お盆',             desc:'持てる料理の数 +1（最大4つ）',   cost:[1800,3600]},
- {id:'walk', name:'ダッシュ特訓',     desc:'歩くスピード +20%',              cost:[1000,2100,3600]},
- {id:'pat',  name:'おもてなし',       desc:'お客さんの待ち時間 +15%',        cost:[900,2000,3300]},
- {id:'spd',  name:'スパイス修行',     desc:'全メニューの調理時間 -12%',      cost:[1200,2400,3900]},
- {id:'decor',name:'お店のリフォーム', desc:'お店がきれいに & チップ +10%（店ごとにリセット）', cost:[1500,3000,5400,9000]},
+ {id:'tray', name:'お盆',             desc:'持てる料理の数 +1（最大4つ）',   cost:[2500,5000]},
+ {id:'walk', name:'ダッシュ特訓',     desc:'歩くスピード +20%',              cost:[1500,3000,5000]},
+ {id:'pat',  name:'おもてなし',       desc:'お客さんの待ち時間 +15%',        cost:[1500,3000,5000]},
+ {id:'spd',  name:'スパイス修行',     desc:'全メニューの作業時間 -12%',      cost:[2000,4000,6500]},
+ {id:'decor',name:'お店のリフォーム', desc:'お店がきれいに & チップ +10%（店ごとにリセット）', cost:[2500,5000,9000,15000]},
 ];
-const capOf=()=>2+G.up.cap;
 const QMAX=8;
 const handsMax=()=>2+(G.up.tray||0);
-// 品物ごとのアップグレード（最大Lv3: 価格+15%/Lv、調理時間-8%/Lv）
+/* ---------- 料理ごとのアップグレード ----------
+   Lv1・Lv2・Lv3 の順に購入。効果: s=作業時間短縮 / p=値段アップ / b=作業台+1 / a=仕上げ工程の自動化
+   工程のタイプで効果を変える: A(調理+仕上げ) / B(調理のみ) / C(仕上げのみ) */
+const UP_TXT={
+ kebab:[['業務用グリル','強火の遠赤外線グリルに入れ替え。肉汁を閉じこめて、焼き時間も短く。'],['作業台をもう1台','グリルの横に専用の台を増設。ケバブを2本同時に仕込める。'],['全自動ソースマシン','野菜とソースを機械がのせてくれる。仕上げの工程がいらなくなる！']],
+ salad:[['ブランド野菜','朝採れの高級野菜に変更。もりつけも映えて、値段もアップ。'],['高速カッター','野菜カットが超高速に。トッピング台での作業が短縮。'],['自動サラダ盛りマシン','お皿をとるだけで完成！ 仕上げの工程がいらなくなる。']],
+ lassi:[['業務用ミキサー','モーターがパワーアップして、あっという間に混ざる。'],['作業台をもう1台','ミキサーをもう1台増設。ラッシーを同時に2杯作れる。'],['全自動ヨーグルトサーバー','ボタン一つで注ぎ分け。さらに速く、プレミアム価格に。']],
+ naan:[['石窯タンドール','石窯に入れ替えて、焼き時間が短縮。香りもアップ。'],['作業台をもう1台','窯口を増設。ナンを2枚同時に焼ける。'],['熟練職人の手さばき','生地さばきが超高速に。さらに速く、ふっくら高級ナンに。']],
+ curry:[['銅の大鍋','熱がまんべんなく伝わる銅鍋。コクも深まる。'],['作業台をもう1台','コンロをもう1口。バターチキンを並行して煮こめる。'],['自動トッピングロボ','クリームとパクチーを自動でトッピング。仕上げの工程が不要に！']],
+ mango:[['高性能ミキサー','なめらか仕上げのプロ用ミキサーに交換。'],['作業台をもう1台','ミキサーをもう1台。マンゴーラッシーを同時に2杯。'],['自動マンゴーのせ機','熟れたマンゴーを自動でカット＆トッピング。仕上げが不要に！']],
+ tandoori:[['炭火グリル','香ばしい炭火で一気に焼き上げる。'],['作業台をもう1台','焼き台を増設して、2羽まとめて焼ける。'],['自動薬味カッター','レモンと玉ねぎを自動でそえてくれる。仕上げが不要に！']],
+ oj:[['コールドプレス搾り機','搾りたてを短時間で。'],['作業台をもう1台','搾り機を増設。2杯同時に搾れる。'],['全自動オレンジ搾り機','皮ごとセットするだけ。さらに速く、高級ジュースに。']],
+ cheese:[['石窯タンドール','石窯に変えて、焼き時間が短縮。'],['作業台をもう1台','窯口を増やして、チーズナンを2枚同時に。'],['自動チーズシューター','チーズをのせる工程が不要に！ 生地から直接焼ける。']],
+ keema:[['じっくり圧力鍋','圧力鍋で、煮込み時間を短縮。'],['作業台をもう1台','キーマ専用のコンロを増設。'],['自動たまごスライサー','ゆで卵とネギを自動でトッピング。仕上げが不要に！']],
+ don:[['強火の中華コンロ','火力が上がり、お肉をさっと炒められる。'],['作業台をもう1台','丼専用のコンロを増設。'],['自動タレかけ機','野菜とソースを自動でのせてくれる。仕上げが不要に！']],
+ gapao:[['業務用ウォック','強火で一気に炒め上げる、本格ウォック。'],['作業台をもう1台','ウォック台を増設。ガパオを2皿同時に。'],['自動目玉焼きマシン','目玉焼きとバジルを自動でのせる。仕上げが不要に！']],
+ thaitea:[['高圧ティーサーバー','濃く出して、短時間で抽出。'],['作業台をもう1台','抽出サーバーを増設。'],['自動ミルクディスペンサー','ミルクを自動でそそぐ。仕上げが不要に！']],
+ papaya:[['本場の青パパイヤ','現地直送で、歯ごたえ抜群。値段もアップ。'],['プロ用ミル','パパイヤを叩く作業が速くなる。'],['全自動サラダミキサー','材料をセットすれば自動で和える。工程が不要に！']],
+ pho:[['寸胴スープ鍋','じっくり出汁をとった寸胴で、すぐ提供。'],['作業台をもう1台','スープ鍋を増設。'],['自動ハーブトッパー','ハーブとライムを自動で盛りつけ。仕上げが不要に！']],
+ khaoman:[['大型蒸し器','蒸気をたっぷり使える大型蒸し器。'],['作業台をもう1台','蒸し器の段を増やして、同時に蒸せる。'],['自動タレかけ機','きゅうりとタレを自動でそえてくれる。仕上げが不要に！']],
+ coconut:[['ココナッツ割り機','殻割りが一瞬に。'],['作業台をもう1台','ディスペンサーを増設。'],['冷凍ココナッツサーバー','キンキンに冷えた特別仕様。さらに速く、高級価格に。']],
+ tomyum:[['香辛料ミル','スパイスを挽きたてで。コクが増す。'],['作業台をもう1台','専用のコンロを増設。'],['自動エビトッパー','エビとパクチーを自動でのせる。仕上げが不要に！']],
+ chahan:[['鉄の中華鍋','鍋ふりが軽くなり、パラパラに。'],['作業台をもう1台','コンロを増設。'],['自動トッピングマシン','エビとネギを自動でトッピング。仕上げが不要に！']],
+ margherita:[['ナポリ式薪窯','高温で一気に焼き上げて、短時間で完成。'],['作業台をもう1台','窯をもう1つ。2枚同時に焼ける。'],['自動トマトチーズ機','トマトとチーズを自動でのせる。仕上げが不要に！']],
+ cappuccino:[['業務用エスプレッソマシン','圧力が安定して、抽出が早い。'],['作業台をもう1台','マシンをもう1台増設。'],['自動ミルクフォーマー','ミルクの泡を自動でのせる。仕上げが不要に！']],
+ caesar:[['パルミジャーノ増量','本格チーズで、高級感アップ。'],['クルトンメーカー','クルトンが自動で焼きたてに。作業が短縮。'],['自動シーザー盛りマシン','お皿をとるだけで完成！ 仕上げの工程がいらなくなる。']],
+ meatpasta:[['大型ゆで麺機','ゆで上がりが早く、均一に。'],['作業台をもう1台','ゆでかごを増設。'],['自動ソースかけ機','ミートソースを自動でかける。仕上げが不要に！']],
+ carbonara:[['業務用ゆで麺機','ゆで時間を短縮。'],['作業台をもう1台','ゆでかごを増設。'],['自動ベーコンソース機','ソースとベーコンを自動でのせる。仕上げが不要に！']],
+ tiramisu:[['マスカルポーネ増量','濃厚クリームで、高級感アップ。'],['高速クリーム絞り機','クリームの絞りが速くなる。'],['自動デザートマシン','スポンジをとるだけで完成！ 仕上げの工程がいらなくなる。']],
+ minestrone:[['圧力スープ鍋','野菜の旨みを、短時間で引き出す。'],['作業台をもう1台','スープ鍋を増設。'],['自動チーズおろし器','チーズを自動でふりかける。仕上げが不要に！']],
+ pizza4:[['石窯ピザオーブン','焼き上がりが早くなる。'],['作業台をもう1台','オーブンを増設。'],['自動4種チーズ機','4種のチーズを自動でのせる。仕上げが不要に！']],
+};
+function upKind(it){
+  const cook=it.steps.some(s=>s.k==='cook'),top=it.steps.some(s=>s.k==='top');
+  return cook&&top?'A':cook?'B':'C';
+}
+const UP_EFF={
+  A:[{s:.15,p:.05},{b:1},{a:1,p:.10}],
+  B:[{s:.15,p:.05},{b:1},{s:.25,p:.15}],
+  C:[{p:.10},{s:.35},{a:1,p:.10}],
+};
+function effText(e){
+  const t=[];
+  if(e.s)t.push('作業時間 -'+Math.round(e.s*100)+'%');
+  if(e.b)t.push('作業台 +1');
+  if(e.a)t.push('仕上げ工程が不要に！');
+  if(e.p)t.push('値段 +'+Math.round(e.p*100)+'%');
+  return t.join(' / ');
+}
 const ilv=id=>(G.itemUp&&G.itemUp[id])||0;
-const iprice=it=>Math.round(it.price*(1+.15*ilv(it.id))/10)*10;
+// 購入済みレベルの効果を合計する
+function ueff(id){
+  const it=IT[id],lv=ilv(id),e={s:0,p:0,b:0,a:0},tbl=UP_EFF[upKind(it)];
+  for(let i=0;i<lv;i++){const x=tbl[i];e.s+=x.s||0;e.p+=x.p||0;e.b+=x.b||0;if(x.a)e.a=1}
+  return e;
+}
+// 自動化すると、トッピング工程が不要になる
+const stepsOf=it=>ueff(it.id).a?it.steps.filter(s=>s.k!=='top'):it.steps;
+const benchOf=id=>1+ueff(id).b;
+const iprice=it=>Math.round(it.price*(1+ueff(it.id).p)/10)*10;
 const wasteCost=it=>Math.round(iprice(it)*.4/10)*10;
-const itemUpCost=(it,lv)=>Math.round(it.price*[.8,1.6,2.6][lv]/100)*100;
+const itemUpCost=(it,lv)=>Math.round(it.price*[1.2,2.4,4][lv]/100)*100;
 const SLOT_X=[104,196,288,380];
 // 調理場の配置（材料棚・トッピング台・調理場×4）
 const LAYOUT=[{id:'pantry',x:0,w:150},{id:'top',x:150,w:66},{id:'h1',x:216,w:66},{id:'h2',x:282,w:66},{id:'h3',x:348,w:66},{id:'h4',x:414,w:66}];
@@ -722,7 +778,12 @@ function startPlay(){
      boy:{x:240,state:'idle',act:0,pg:0},
      spawn:.6,combo:0,maxCombo:0,served:0,lost:0,tips:0,floats:[],parts:[],msg:'',msgT:0,over:0,count:2.2,paused:false,burned:0,
      waste:0,closed:false,banner:0,dish:0,mat:0,cooks:{}};
-  HEAT.forEach(h=>P.st[h]=[null,null,null]);
+  // 調理場の作業台は料理ごと。購入した分だけ、その料理の専用台が並ぶ
+  HEAT.forEach(h=>P.st[h]=[]);
+  curItems(G.day).forEach(it=>{
+    const cs=it.steps.find(x=>x.k==='cook');
+    if(cs)for(let b=0;b<benchOf(it.id);b++)P.st[cs.st].push({item:it.id,dish:null,state:'idle',p:0,rt:0});
+  });
   scene='play';
 }
 function say(m){P.msg=m;P.msgT=2.4}
@@ -760,14 +821,14 @@ function dismiss(c,mood){
 /* ---- 調理工程 ----
    料理は dish={id,step} として持ち運ぶ。step は「次にやる工程」の番号。
    take(材料をとる) → cook(調理場に置く→できあがるまで待つ→取り出す) / top(トッピング台で仕上げ) の順。 */
-const stepOf=d=>IT[d.id].steps[d.step];
-const dishDone=d=>d.step>=IT[d.id].steps.length;
-function stepTime(stp,it){return stp.t*(1-.12*G.up.spd)*(1-.08*ilv(it.id))}
-function freeSlot(st){const a=P.st[st],cap=capOf();for(let k=0;k<cap;k++)if(!a[k])return k;return -1}
+const stepOf=d=>stepsOf(IT[d.id])[d.step];
+const dishDone=d=>d.step>=stepsOf(IT[d.id]).length;
+function stepTime(stp,it){return stp.t*(1-.12*G.up.spd)*(1-ueff(it.id).s)}
+function freeSlot(st,id){return P.st[st].findIndex(s=>s.item===id&&!s.dish)}
 function heldNeed(st){
   return P.hands.findIndex(d=>{const s=stepOf(d);return s&&(st==='top'?s.k==='top':(s.k==='cook'&&s.st===st))});
 }
-function wasteFor(d){return Math.round(wasteCost(IT[d.id])*(.35+.65*Math.min(1,d.step/IT[d.id].steps.length))/10)*10}
+function wasteFor(d){return Math.round(wasteCost(IT[d.id])*(.35+.65*Math.min(1,d.step/stepsOf(IT[d.id]).length))/10)*10}
 function loseDish(it,x,label){
   const c=wasteCost(it);P.money-=c;P.waste+=c;float(x,126,label+' -'+yen(c),'#ff7a6a');
 }
@@ -781,13 +842,13 @@ function enqueue(a){
 }
 function actX(a){return a.t==='serve'?a.c.x:a.t==='trash'?STX.trash:a.t==='start'?STX.pantry:STX[a.st]}
 function actValid(a){
-  if(a.t==='take')return !!P.st[a.st][a.k];
+  if(a.t==='take'){const sl=P.st[a.st][a.k];return !!(sl&&sl.dish)}
   if(a.t==='trash')return P.hands.length>0;
   if(a.t==='serve')return a.c.state==='wait'&&P.slots.includes(a.c);
   return true;
 }
 function actDur(a){
-  if(a.t==='step'&&a.st==='top'){const i=heldNeed('top');return i>=0?stepOf(P.hands[i]).t:.15}
+  if(a.t==='step'&&a.st==='top'){const i=heldNeed('top');return i>=0?Math.max(.15,stepTime(stepOf(P.hands[i]),IT[P.hands[i].id])):.15}
   return .25;
 }
 function perform(a){
@@ -800,15 +861,15 @@ function perform(a){
     if(i<0){say('ここでできる作業がないよ');SFX.bad();return}
     const d=P.hands[i];
     if(a.st==='top'){d.step++;SFX.ready();sparkle(b.x,125,5);return}
-    const k=freeSlot(a.st);
-    if(k<0){say('この調理場はいっぱい！');SFX.bad();return}
-    P.hands.splice(i,1);P.st[a.st][k]={dish:d,state:'cook',p:0,rt:0};
+    const k=freeSlot(a.st,d.id);
+    if(k<0){say('この料理の作業台がいっぱい！');SFX.bad();return}
+    P.hands.splice(i,1);Object.assign(P.st[a.st][k],{dish:d,state:'cook',p:0,rt:0});
     SFX.cook();P.cooks[a.st]=(P.cooks[a.st]||0)+1;
   }else if(a.t==='take'){
-    const arr=P.st[a.st],s=arr[a.k];if(!s)return;
-    if(s.state==='burnt'){arr[a.k]=null;say('こげちゃった…すてました');SFX.bad();return}
+    const arr=P.st[a.st],s=arr[a.k];if(!s||!s.dish)return;
+    if(s.state==='burnt'){s.dish=null;s.state='idle';say('こげちゃった…すてました');SFX.bad();return}
     if(P.hands.length>=handsMax()){say('手がいっぱい！ 先に届けるか、ゴミ箱へ');SFX.bad();return}
-    s.dish.step++;P.hands.push(s.dish);arr[a.k]=null;SFX.take();
+    s.dish.step++;P.hands.push(s.dish);s.dish=null;s.state='idle';SFX.take();
   }else if(a.t==='trash'){
     if(!P.hands.length)return;
     let loss=0;P.hands.forEach(d=>{loss+=wasteFor(d)});
@@ -874,7 +935,7 @@ function updatePlay(dt){
   if(!P.closed){P.t-=dt;if(P.t<=0){P.t=0;P.closed=true;P.banner=2.4;SFX.fanfare()}}
   // 調理場
   HEAT.forEach(sid=>P.st[sid].forEach(s=>{
-    if(!s)return;
+    if(!s.dish)return;
     const it=IT[s.dish.id],stp=stepOf(s.dish);
     if(s.state==='cook'){s.p+=dt;if(s.p>=stepTime(stp,it)){s.state='ready';s.rt=0;SFX.ready()}}
     else if(s.state==='ready'&&burnable(sid)){s.rt+=dt;if(s.rt>8){s.state='burnt';SFX.burn();P.burned++;loseDish(it,STX[sid],'こげた！')}}
@@ -903,7 +964,7 @@ function updatePlay(dt){
 }
 // 工程の進み具合に応じて、料理のドット絵を下から少しずつ完成させて見せる
 function drawDish(d,x,y,size,extra){
-  const it=IT[d.id],f=Math.min(1,(d.step+(extra||0))/it.steps.length),sc=size/16;
+  const it=IT[d.id],f=Math.min(1,(d.step+(extra||0))/stepsOf(it).length),sc=size/16;
   ctx.globalAlpha=.4;spr(it.sprGray,x,y,sc);ctx.globalAlpha=1;
   if(f>=1){spr(it.spr,x,y,sc);return}
   const h=Math.max(1,Math.round(16*f));
@@ -958,7 +1019,7 @@ function hintText(){
   if(P.closed)return '閉店！ のこりのお客さんに届けよう';
   // 持っている料理の「つぎの工程」を教える
   if(P.hands.length){
-    return P.hands.slice(0,2).map(d=>{const it=IT[d.id];return it.name+'→'+(dishDone(d)?'できあがり！客へ':it.labels[d.step])}).join('\n');
+    return P.hands.slice(0,2).map(d=>{const it=IT[d.id];return it.name+'→'+(dishDone(d)?'できあがり！客へ':stepOf(d).label)}).join('\n');
   }
   if(G.stage===1&&P.day<=2){
     if(Object.values(P.st).some(a=>a.some(s=>s&&s.state==='ready')))return 'できた料理をタップで取り出す！';
@@ -985,7 +1046,7 @@ function drawAppliance(id,x0,w){
     box(cx-20,228,40,22,'#8a96a2','#3b2418');R(cx-23,224,46,5,'#b6c0ca');R(cx-4,220,8,4,'#59606a');
     for(let i=0;i<3;i++){const yy=(T*14+i*9)%22;R(cx-10+i*9,214-yy+14,3,3,'#ffffff88')}
   }else{ // ドリンクサーバー・エスプレッソマシン
-    box(cx-18,208,36,44,'#4a8ac0','#1e3a5a');R(cx-14,214,28,8,'#cfe6f8');R(cx-3,236,6,8,'#cfd6dc');R(cx-12,246,24,4,'#1e3a5a');
+    box(cx-18,214,36,44,'#4a8ac0','#1e3a5a');R(cx-14,220,28,8,'#cfe6f8');R(cx-3,242,6,8,'#cfd6dc');R(cx-12,252,24,4,'#1e3a5a');
   }
 }
 SC.play={
@@ -1031,7 +1092,7 @@ SC.play={
     if((G.up.tray||0)>0)box(hx-3,141+bob,hw+6,5,'#cfd6dc','#59606a');
     P.hands.forEach((d,k)=>{
       drawDish(d,hx+k*17,128+bob,16);
-      const n=IT[d.id].steps.length;
+      const n=stepsOf(IT[d.id]).length;
       for(let j=0;j<n;j++)R(hx+k*17+8-n*2+j*4,144+bob,3,2,j<d.step?'#6fd36a':'#3a2c2a');
     });
     if(b.state==='wait')txt('…',b.x,106+bob,12,'#3b2418','center','#fff');
@@ -1048,7 +1109,7 @@ SC.play={
       box(qx,qy,14,14,i===0?'#ffd84a':'#fff','#3b2418');
       let ic=null;
       if(a.t==='start')ic=IT[a.item].spr;
-      else if(a.t==='take'){const sl=P.st[a.st][a.k];if(sl)ic=IT[sl.dish.id].spr}
+      else if(a.t==='take'){const sl=P.st[a.st][a.k];if(sl&&sl.dish)ic=IT[sl.dish.id].spr}
       else if(a.t==='serve')ic=a.c.spr;
       else if(a.t==='trash'){R(qx+4,qy+4,6,8,'#7a8590');R(qx+3,qy+3,8,2,'#59606a')}
       else txt(stName(a.st)[0],qx+7,qy+3,8,'#3b2418','center');
@@ -1073,7 +1134,7 @@ SC.play={
           spr(it.spr,bx+4,by+1,1.5);
           txt(yen(iprice(it)),bx+16,by+25,7,'#ffe066','center','#2a1a1e');
           lhit(bx,by,33,32,()=>enqueue({t:'start',item:it.id}));
-          if(inside(bx,by,33,32))tip=it.name+'：'+it.labels.join('→');
+          if(inside(bx,by,33,32))tip=it.name+'：'+stepsOf(it).map(x=>x.label).join('→');
           badge(bx+14,by-2,bd['c:'+it.id]);
         });
       }else if(l.id==='top'){
@@ -1089,29 +1150,33 @@ SC.play={
         lhit(x0,150,l.w,118,()=>enqueue({t:'step',st:l.id}));
         if(inside(x0,150,l.w,118)&&live)tip=stName(l.id)+'（持っている料理を入れる）';
         drawAppliance(l.id,x0,l.w);
-        const cap=capOf(),size=cap<=2?28:20,gap=cap<=2?4:2,total=cap*size+(cap-1)*gap,sx=Math.round(x0+(l.w-total)/2);
+        const slots=P.st[l.id],n=slots.length,cols=n<=2?Math.max(1,n):3,size=n<=2?28:20,gap=n<=2?4:3;
+        const total=Math.min(n,cols)*size+(Math.min(n,cols)-1)*gap,sx=Math.round(x0+(l.w-total)/2);
         badge(x0+4,155,bd['p:'+l.id]);
-        for(let k=0;k<cap;k++){
-          const bx=sx+k*(size+gap),sl=P.st[l.id][k],ic=size-4;
-          box(bx,166,size,size,'#3a2c2a','#1e1214');
-          if(!sl)continue;
-          const it=IT[sl.dish.id],stp=stepOf(sl.dish);
-          if(sl.state==='cook'){
-            const f=Math.min(1,sl.p/stepTime(stp,it));
-            drawDish(sl.dish,bx+2,168,ic,f);
-            R(bx+2,166+size-5,size-4,3,'#1e1214');R(bx+2,166+size-5,Math.round((size-4)*f),3,'#6fd36a');
-          }else if(sl.state==='ready'){
-            const bb=Math.round(Math.abs(Math.sin(T*6))*2);
-            drawDish(sl.dish,bx+2,168-bb,ic,1);
-            if(burnable(l.id)){const f=1-sl.rt/8;R(bx+2,166+size-5,size-4,3,'#1e1214');R(bx+2,166+size-5,Math.max(0,Math.round((size-4)*f)),3,f>.5?'#6fd36a':f>.25?'#ffd84a':'#ff5a4a')}
-            if(Math.floor(T*4)%2)txt('✦',bx+size-5,162,8,'#ffe066','center');
-          }else{
-            spr(it.sprBurnt,bx+2,168,ic/16);txt('×',bx+size/2,168,14,'#ff5a4a','center','#000');
+        slots.forEach((sl,k)=>{
+          const bx=sx+(k%cols)*(size+gap),by=166+Math.floor(k/cols)*(size+3),ic=size-4;
+          const it=IT[sl.item];
+          box(bx,by,size,size,'#3a2c2a','#1e1214');
+          if(!sl.dish){ctx.globalAlpha=.22;spr(it.sprGray,bx+2,by+2,ic/16);ctx.globalAlpha=1;} // この台は、この料理の専用
+          else{
+            const stp=stepOf(sl.dish);
+            if(sl.state==='cook'){
+              const f=Math.min(1,sl.p/stepTime(stp,it));
+              drawDish(sl.dish,bx+2,by+2,ic,f);
+              R(bx+2,by+size-5,size-4,3,'#1e1214');R(bx+2,by+size-5,Math.round((size-4)*f),3,'#6fd36a');
+            }else if(sl.state==='ready'){
+              const bb=Math.round(Math.abs(Math.sin(T*6))*2);
+              drawDish(sl.dish,bx+2,by+2-bb,ic,1);
+              if(burnable(l.id)){const f=1-sl.rt/8;R(bx+2,by+size-5,size-4,3,'#1e1214');R(bx+2,by+size-5,Math.max(0,Math.round((size-4)*f)),3,f>.5?'#6fd36a':f>.25?'#ffd84a':'#ff5a4a')}
+              if(Math.floor(T*4)%2)txt('✦',bx+size-5,by-4,8,'#ffe066','center');
+            }else{
+              spr(it.sprBurnt,bx+2,by+2,ic/16);txt('×',bx+size/2,by+2,14,'#ff5a4a','center','#000');
+            }
+            lhit(bx,by,size,size,()=>enqueue({t:'take',st:l.id,k}));
+            badge(bx,by+size-8,bd['t:'+l.id+':'+k]);
           }
-          lhit(bx,166,size,size,()=>enqueue({t:'take',st:l.id,k}));
-          if(inside(bx,166,size,size))tip=sl.state==='burnt'?'こげてる！ タップですてに行く':sl.state==='ready'?it.name+'（タップで取り出す）':it.name+' 調理中…（タップで完成を待つ）';
-          badge(bx+4,160,bd['t:'+l.id+':'+k]);
-        }
+          if(inside(bx,by,size,size))tip=!sl.dish?it.name+'の専用作業台':sl.state==='burnt'?'こげてる！ タップですてに行く':sl.state==='ready'?it.name+'（タップで取り出す）':it.name+' 調理中…（タップで完成を待つ）';
+        });
       }
     });
     // ヒント・ツールチップ
@@ -1181,21 +1246,21 @@ SC.title={
 SC.sprites={draw(){R(0,0,W,H,'#ccc');ITEMS.forEach((it,i)=>{spr(it.spr,6+(i%9)*52,6+Math.floor(i/9)*44,3)})}};
 
 /* ===== リザルト（帳簿つき） ===== */
-// 実際の飲食店の比率を参考にした帳簿。売上に対して 材料費約32%・人件費約26%・家賃約9%・光熱費約5%。
+// 実際の飲食店の比率を参考にした帳簿。材料費約32%・人件費約28%・家賃約16%・光熱費約7%。
 // 人件費・家賃・光熱費は「その日の標準的な売上」をもとにした固定費なので、売上が少ない日は赤字になる。
 function calcLedger(){
-  const E=P.goal*1.3,c=P.cooks;
-  const wage=1100,hours=Math.round(E*.26/wage*10)/10;
+  const E=P.goal*1.15,c=P.cooks; // その日の標準的な売上（固定費の基準）
+  const wage=1100,hours=Math.round(E*.28/wage*10)/10;
   const labor=Math.round(hours*wage/10)*10;
-  const monthly=Math.max(30000,Math.round(E*30*.09/10000)*10000),rent=Math.round(monthly/30/10)*10;
-  const elec=Math.round(E*.025/10)*10;
-  const gas=Math.round((E*.02+((c.h1||0)+(c.h2||0)+(c.h3||0))*6)/10)*10;
-  const water=Math.round(E*.008/10)*10;
-  const misc=Math.round((P.served*18+E*.01)/10)*10;
+  const rent=Math.round(E*.16/10)*10;
+  const elec=Math.round(E*.03/10)*10;
+  const gas=Math.round((E*.03+((c.h1||0)+(c.h2||0)+(c.h3||0))*6)/10)*10;
+  const water=Math.round(E*.01/10)*10;
+  const misc=Math.round((P.served*18+E*.02)/10)*10;
   const gross=P.money+P.waste;
   const L={
     dish:P.dish,tips:P.tips,bonus:Math.max(0,gross-P.dish-P.tips),waste:P.waste,sales:P.money,
-    mat:P.mat,labor,hours,wage,rent,monthly,elec,gas,water,util:elec+gas+water,misc
+    mat:P.mat,labor,hours,wage,rent,elec,gas,water,util:elec+gas+water,misc
   };
   L.exp=L.mat+L.labor+L.rent+L.util+L.misc;
   L.net=L.sales-L.exp;
@@ -1228,7 +1293,7 @@ SC.result={
     const rows=[
       ['【売上】',''],['料理売上',yen(L.dish)],['チップ',yen(L.tips)],['コンボ特典',yen(L.bonus)],['廃棄ロス（捨てた・焦がした）',yen(-L.waste)],['売上計',yen(L.sales),1],
       ['【経費】',''],['材料費（原価）',yen(-L.mat)],['人件費（時給¥'+L.wage.toLocaleString('en-US')+'×'+L.hours+'時間）',yen(-L.labor)],
-      ['家賃（月¥'+L.monthly.toLocaleString('en-US')+'÷30日）',yen(-L.rent)],['光熱費（電気'+L.elec+'・ガス'+L.gas+'・水道'+L.water+'）',yen(-L.util)],['包装・広告・雑費',yen(-L.misc)],['経費計',yen(-L.exp),1],
+      ['家賃（日割り）',yen(-L.rent)],['光熱費（電気'+L.elec+'・ガス'+L.gas+'・水道'+L.water+'）',yen(-L.util)],['包装・広告・雑費',yen(-L.misc)],['経費計',yen(-L.exp),1],
       ['差引利益',yen(L.net),2]
     ];
     rows.forEach((r,i)=>{
@@ -1262,14 +1327,14 @@ SC.result={
 
 /* ===== ショップ ===== */
 function toShop(){scene='shop'}
-let shopTab=0;
+let shopTab=0,shopSel=null;
 const upgradable=()=>ITEMS.filter(it=>it.stage===G.stage&&it.day<=Math.max(1,Math.min(G.day-1,stg().days)));
 function goNext(){
   if(G.stageClear){
     const last=G.stage>=STAGES.length;
     startStory(STAGE_END[G.stage],()=>{
       if(last){G.cleared=true;saveGame();scene='ending';SFX.fanfare();return}
-      G.stage++;G.day=1;G.stageClear=false;G.up.cap=0;G.up.decor=0;saveGame();
+      G.stage++;G.day=1;G.stageClear=false;G.up.decor=0;saveGame();
       startStory(STAGE_PRO[G.stage].concat(dayPages(1)),startPlay);
     });
   }else if(G.stage===1&&G.day===1&&!G.intro)startStory(PROLOGUE.concat(dayPages(1)),()=>{G.intro=true;saveGame();startPlay()});
@@ -1292,17 +1357,35 @@ SC.shop={
         else{const c=u.cost[lv];button(386,y+4,70,21,yen(c),()=>{G.cash-=c;G.up[u.id]=lv+1;saveGame();SFX.coin()},{disabled:G.cash<c,sz:9,col:'#3a8a5a'})}
       });
     }else{
-      txt('メニューを磨くと 値段 +15% ＆ 調理時間 -8%（Lv3まで）',16,44,8,'#d8c8e0','left',null,false);
-      upgradable().forEach((it,i)=>{
-        const x=14+(i%2)*232,y=56+Math.floor(i/2)*30,lv=ilv(it.id);
-        box(x,y,220,28,'#5e4a63','#1e1214');
-        spr(it.spr,x+2,y+2,1.5);
-        txt(it.name,x+30,y+3,8,'#fff');
-        for(let k=0;k<3;k++)R(x+118+k*8,y+4,6,6,k<lv?'#ffd84a':'#2a1a2e');
-        txt(yen(iprice(it))+'  調理'+it.steps.filter(s=>s.k==='cook').reduce((a,s)=>a+stepTime(s,it),0).toFixed(1)+'秒',x+30,y+16,7,'#d8c8e0','left',null,false);
-        if(lv>=3)button(x+148,y+3,68,22,'MAX',()=>{},{disabled:true,sz:8});
-        else{const c=itemUpCost(it,lv);button(x+148,y+3,68,22,yen(c),()=>{G.cash-=c;G.itemUp[it.id]=lv+1;saveGame();SFX.coin()},{disabled:G.cash<c,sz:8,col:'#3a8a5a'})}
+      const list=upgradable();
+      if(!list.find(i=>i.id===shopSel))shopSel=list[0]?list[0].id:null;
+      list.forEach((it,i)=>{
+        const bx=14+(i%4)*34,by=46+Math.floor(i/4)*40,lv=ilv(it.id),sel=it.id===shopSel;
+        box(bx,by,32,38,sel?'#e8742a':'#5e4a63','#1e1214');
+        spr(it.spr,bx+4,by+2,1.5);
+        for(let k=0;k<3;k++)R(bx+5+k*8,by+30,6,5,k<lv?'#ffd84a':'#2a1a2e');
+        hit(bx,by,32,38,()=>{shopSel=it.id;SFX.click()});
       });
+      txt('料理を選んで\n機械をアップグレード',14,170,8,'#d8c8e0','left',null,false);
+      if(shopSel){
+        const it=IT[shopSel],lv=ilv(it.id),kind=upKind(it);
+        box(156,44,310,194,'#4a3652','#1e1214');
+        spr(it.spr,160,46,1.5);
+        txt(it.name,190,48,10,'#ffe066','left','#1e1214');
+        txt(stepsOf(it).map(x=>x.label).join(' → '),190,62,7,'#d8c8e0','left',null,false);
+        UP_TXT[it.id].forEach((u,i)=>{
+          const y=76+i*54,e=UP_EFF[kind][i],done=lv>i,next=lv===i;
+          box(160,y,302,50,done?'#3a5a44':'#5e4a63','#1e1214');
+          txt('Lv'+(i+1),166,y+4,8,done?'#9affb0':'#ffd84a');
+          txt(u[0],190,y+4,9,'#fff');
+          wrap(u[1],205,7).slice(0,2).forEach((l,k)=>txt(l,166,y+17+k*9,7,'#d8c8e0','left',null,false));
+          txt(effText(e),166,y+37,7,'#ffe066','left',null,true);
+          const c=itemUpCost(it,i);
+          if(done)button(398,y+14,58,22,'導入済み',()=>{},{disabled:true,sz:7,col:'#3a8a5a'});
+          else if(next)button(398,y+14,58,22,yen(c),()=>{G.cash-=c;G.itemUp[it.id]=lv+1;saveGame();SFX.coin()},{disabled:G.cash<c,sz:8,col:'#3a8a5a'});
+          else button(398,y+14,58,22,'まだ',()=>{},{disabled:true,sz:8});
+        });
+      }
     }
     const last=G.stage>=STAGES.length;
     let msg;
