@@ -350,6 +350,8 @@ function button(x,y,w,h,label,fn,o){
   if(hov)R(x+1,y+1,w-2,h-2,'#ffffff22');
   txt(label,x+w/2,y+(h-(o.sz||9))/2-1,o.sz||9,o.disabled?'#b8aebd':'#fff',  'center','#3b2418');
 }
+// ゲーム一覧ページ(リポジトリのルート)に戻る
+function goList(){location.href='../../index.html'}
 function drawMute(){
   const x=462,y=1,w=16,h=12;hit(x,y,w,h,()=>{muted=!muted;if(!muted)SFX.click()});
   box(x,y,w,h,muted?'#6b6270':'#5a3a6a','#000');txt(muted?'×':'♪',x+w/2,y+1,9,'#fff','center');
@@ -541,6 +543,7 @@ SC.title={
     ctx.fillStyle='#00000030';ITEMS.forEach((it,i)=>{ctx.beginPath();ctx.ellipse(50+i*38,186,14,3,0,0,7);ctx.fill()});
     drawChar('boy',240,238,4,{joy:true,talk:true});
     const sv=loadSave();
+    button(6,4,88,14,'← ゲーム一覧',goList,{sz:8,col:'#5a3a6a'});
     button(300,196,150,24,'はじめから',()=>{G=newGame();startStory(PROLOGUE.concat(dayPages(1)),()=>{G.intro=true;saveGame();startPlay()})},{sz:11});
     if(sv)button(300,226,150,24,'つづきから  (DAY '+Math.min(sv.day,10)+')',()=>{G=sv;if(G.day>10)G.day=10;toShop(true)},{sz:11,col:'#3a8a5a'});
     txt('クリック / タップで あそべます',30,250,8,'#fff','left','#3b2418');
@@ -893,6 +896,7 @@ SC.play={
       R(0,0,W,H,'#000000bb');txt('ポーズ中',240,80,22,'#fff','center','#3b2418');
       button(170,120,140,24,'つづける',()=>{P.paused=false});
       button(170,152,140,24,'あきらめる',()=>{toShop(true)},{col:'#8a4a5a'});
+      button(170,184,140,24,'ゲーム一覧へ',goList,{col:'#6a5a7a'});
     }
   }
 };
@@ -1006,7 +1010,8 @@ SC.ending={
     ITEMS.forEach((it,i)=>{const b=Math.round(Math.abs(Math.sin(T*3+i*.5))*5);spr(it.spr,22+i*40,108-b,2)});
     drawChar('boy',150,226,5,{joy:true,talk:true});drawChar('dad',330,226,5,{ok:true});
     txt('プレイしてくれて ありがとう！',240,150,10,'#3b2418','center','#fff');
-    button(180,238,120,24,'タイトルへ',()=>{scene='title'},{sz:10});
+    button(100,238,120,24,'タイトルへ',()=>{scene='title'},{sz:10});
+    button(260,238,120,24,'ゲーム一覧へ',goList,{sz:10,col:'#6a5a7a'});
     drawMute();
   }
 };
