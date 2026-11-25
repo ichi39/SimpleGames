@@ -1258,18 +1258,18 @@ function drawTrash(x,y){
 /* ---- お客さん・ふきだし ---- */
 function drawBubble(c){
   const n=c.need.length,cx=Math.round(c.x),course=!!fl().course;
-  const big=n>3,sz=big?1:1.5,px=sz*16,stp=big?17:27;
-  const cols=big?3:n,rows=Math.ceil(n/cols);
-  const w=cols*stp+5,h=big?rows*17+5:30,x=Math.round(c.x-w/2),y=50-h;
+  const sz=n<=2?2:n===3?1.5:1,px=sz*16,stp=n<=2?35:n===3?27:17;
+  const cols=n<=3?n:3,rows=Math.ceil(n/cols);
+  const w=cols*stp+5,h=n<=3?px+6:rows*17+5,x=Math.round(c.x-w/2),y=(n<=2?52:50)-h;
   R(x+1,y+3,w,h,'#00000033');
   box(x,y,w,h,'#fff','#3b2418');
   R(cx-3,y+h,6,2,'#fff');R(cx-2,y+h+2,4,2,'#fff');
   R(cx-3,y+h,1,3,'#3b2418');R(cx+2,y+h,1,3,'#3b2418');R(cx-2,y+h+3,4,1,'#3b2418');
   c.need.forEach((nd,i)=>{
-    const ix=x+4+(i%cols)*stp,iy=y+3+Math.floor(i/cols)*(big?17:0),it=IT[nd.id];
-    if(nd.done){ctx.globalAlpha=.3;spr(it.spr,ix,iy,sz);ctx.globalAlpha=1;txt('✓',ix+px/2,iy+(big?0:2),big?12:16,'#2fa04a','center','#fff')}
+    const ix=x+4+(i%cols)*stp,iy=y+3+Math.floor(i/cols)*(n<=3?0:17),it=IT[nd.id];
+    if(nd.done){ctx.globalAlpha=.3;spr(it.spr,ix,iy,sz);ctx.globalAlpha=1;txt('✓',ix+px/2,iy+(px>=32?4:px>=24?2:0),px>=32?24:px>=24?16:12,'#2fa04a','center','#fff')}
     else spr(it.spr,ix,iy,sz);
-    if(course&&!nd.done){box(ix-1,iy-1,7,8,'#ffd84a','#3b2418');txt(String(nd.course),ix+2.5,iy,6,'#3b2418','center')}
+    if(course&&!nd.done){box(ix-1,iy-1,8,9,'#ffd84a','#3b2418');txt(String(nd.course),ix+3,iy,7,'#3b2418','center')}
   });
 }
 function drawCust(c){
@@ -1337,7 +1337,8 @@ function drawApp(a,cx,y){
   }
 }
 function outline(x,y,w,h,c,t){R(x,y,w,t,c);R(x,y+h-t,w,t,c);R(x,y,t,h,c);R(x+w-t,y,t,h,c)}
-function card(x,y,w,h,hov,sel){box(x,y,w,h,hov?'#f2e6d0':'#e0d2b8',sel?'#ffd84a':'#3b2418');R(x+2,y+2,w-4,1,'#ffffffaa');R(x+1,y+h-1,w-2,1,'#00000033')}
+// ボタンの背景は、白いグラスや器が溶けないよう、少し落ち着いた色にする
+function card(x,y,w,h,hov,sel){box(x,y,w,h,hov?'#b8a890':'#9a8a74',sel?'#ffd84a':'#2a1e1a');R(x+2,y+2,w-4,1,'#ffffff55');R(x+1,y+h-1,w-2,1,'#00000044')}
 
 SC.play={
   update(dt){updatePlay(dt)},
@@ -1378,12 +1379,9 @@ SC.play={
     const bob=b.state==='walk'?-Math.abs(Math.round(Math.sin(T*16)*2)):b.state==='act'?-3:0;
     ctx.fillStyle='#0000003a';ctx.beginPath();ctx.ellipse(b.x,146,11,3,0,0,7);ctx.fill();
     spr(b.state==='act'||P.combo>=3?BOY_JOY:BOY,b.x-16,114+bob,2);
-    const hw=handsMax()*17,hx=Math.round(b.x-hw/2);
-    if((G.up.tray||0)>0)box(hx-3,141+bob,hw+6,5,'#cfd6dc','#59606a');
     P.hands.forEach((d,k)=>{
-      drawDish(d,hx+k*17,128+bob,16);
-      const n=stepsOf(IT[d.id]).length;
-      for(let j=0;j<n;j++)R(hx+k*17+8-n*2+j*4,144+bob,3,2,j<d.step?'#6fd36a':'#3a2c2a');
+      const idx=Math.floor(k/2),x=(k%2===0)?b.x-17-32*(idx+1):b.x+17+32*idx;
+      drawDish(d,Math.round(x),117+bob,32);
     });
     if(b.state==='wait')txt('…',b.x,106+bob,12,'#3b2418','center','#fff');
     if(b.state==='act'&&b.pg>0){R(Math.round(b.x)-11,111+bob,22,4,'#000');R(Math.round(b.x)-10,112+bob,Math.round(20*b.pg),2,'#6fd36a')}
@@ -1395,19 +1393,19 @@ SC.play={
     // 予約リスト
     txt('よやく',6,51,8,'#3b2418','left','#fff4c8');
     P.q.forEach((a,i)=>{
-      const qx=6+(i%4)*15,qy=61+Math.floor(i/4)*15;
-      box(qx,qy,14,14,i===0?'#ffd84a':'#fff','#3b2418');
+      const qx=5+(i%4)*17,qy=60+Math.floor(i/4)*17;
+      box(qx,qy,16,16,i===0?'#ffd84a':'#fff','#3b2418');
       let ic=null;
       if(a.t==='start')ic=IT[a.item].spr;
       else if(a.t==='take'){const sl=P.st[a.st][a.k];if(sl&&sl.dish)ic=IT[sl.dish.id].spr}
       else if(a.t==='serve')ic=a.c.spr;
-      else if(a.t==='trash'){R(qx+4,qy+4,6,8,'#7a8590');R(qx+3,qy+3,8,2,'#59606a')}
-      else if(a.t==='restock')txt('＋',qx+7,qy+2,10,'#2f8a3a','center');
+      else if(a.t==='trash'){R(qx+5,qy+4,6,9,'#7a8590');R(qx+4,qy+3,8,2,'#59606a')}
+      else if(a.t==='restock')txt('＋',qx+8,qy+2,11,'#2f8a3a','center');
       else if(a.t==='step'&&a.variant)ic=IT[a.variant].spr;
-      else txt(stName(a.st)[0],qx+7,qy+3,8,'#3b2418','center');
-      if(ic)ctx.drawImage(ic,qx+1,qy+1,12,12);
-      lhit(qx,qy,14,14,()=>{P.q.splice(i,1);SFX.click()});
-      if(inside(qx,qy,14,14))tip='よやくを取り消す';
+      else txt(stName(a.st)[0],qx+8,qy+3,9,'#3b2418','center');
+      if(ic)ctx.drawImage(ic,qx+1,qy+1,14,14);
+      lhit(qx,qy,16,16,()=>{P.q.splice(i,1);SFX.click()});
+      if(inside(qx,qy,16,16))tip='よやくを取り消す';
     });
     // 調理場
     R(0,150,W,120,'#2a1e24');
@@ -1419,30 +1417,28 @@ SC.play={
       const art=l.id[0]==='h'?heatOf(l.id).a:'';
       const col=l.id==='pantry'?'#5a7a3a':l.id==='top'?'#8a5aa8':ART_COL[art];
       // パネルの下地（棚は木、トッピング台はタイル、調理場はステンレス）
-      if(l.id==='pantry'){R(x0+1,150,w-2,118,'#6a4a2a');for(let y=162;y<268;y+=34)R(x0+1,y,w-2,2,'#8a6a3a');for(let y=164;y<268;y+=34)R(x0+1,y+30,w-2,2,'#4a2e16')}
+      if(l.id==='pantry'){R(x0+1,150,w-2,118,'#6a4a2a');for(let y=162;y<268;y+=33)R(x0+1,y,w-2,2,'#8a6a3a')}
       else if(l.id==='top'){R(x0+1,150,w-2,118,'#d8dee6');for(let yy=0;yy<118;yy+=11)for(let xx=0;xx<w-2;xx+=11)if(((xx+yy)/11)%2===0)R(x0+1+xx,150+yy,Math.min(11,w-2-xx),Math.min(11,118-yy),'#c4ccd6')}
       else{R(x0+1,150,w-2,118,'#3a4048');R(x0+1,150,w-2,2,'#5a626c');for(let yy=158;yy<266;yy+=16){R(x0+3,yy,2,2,'#6a727c');R(x0+w-5,yy,2,2,'#6a727c')}}
       outline(x0+1,150,w-2,118,pulse?'#ffd84a':'#0e0a0e',pulse?2:1);
       box(x0+3,152,w-6,12,col,'#0e0a0e');txt(stName(l.id),x0+w/2,153,8,'#fff','center','#0e0a0e');
       if(l.id==='pantry'){
+        // 材料棚: 値段は出さず、アイコンを2倍(32px)で大きく
         startIds(P.day).forEach((sid,k)=>{
-          const it=IT[sid],bx=x0+5+(k%4)*35,by=168+Math.floor(k/4)*34;
-          const hov=inside(bx,by,33,32)&&live;
-          card(bx,by,33,32,hov);
-          spr(it.spr,bx+4,by+1,1.5);
+          const it=IT[sid],bx=x0+3+(k%4)*36,by=167+Math.floor(k/4)*33;
+          const hov=inside(bx,by,35,33)&&live;
+          card(bx,by,35,33,hov);
+          spr(it.spr,bx+2,by+1,2);
+          if(fl().stock){const n=P.stock[sid]||0;txt('×'+n,bx+3,by+22,8,n?'#fff':'#ff7a6a','left','#3b2418')}
+          lhit(bx,by,35,33,()=>enqueue({t:'start',item:sid}));
           if(fl().stock){
-            const n=P.stock[sid]||0;
-            txt('×'+n,bx+12,by+25,7,n?'#3b2418':'#d9392b','center');
-          }else txt(it.base?it.name:yen(iprice(it)),bx+16,by+25,7,'#3b2418','center');
-          lhit(bx,by,33,32,()=>enqueue({t:'start',item:sid}));
-          if(fl().stock){
-            box(bx+22,by+20,10,10,'#3a8a5a','#1a3a2a');txt('＋',bx+27,by+20,8,'#fff','center');
-            lhit(bx+22,by+20,10,10,()=>enqueue({t:'restock',item:sid}));
-            if(inside(bx+22,by+20,10,10))tip=it.name+'の在庫を補充（+5）';
+            box(bx+24,by+1,10,10,'#3a8a5a','#1a3a2a');txt('＋',bx+29,by+1,8,'#fff','center');
+            lhit(bx+24,by+1,10,10,()=>enqueue({t:'restock',item:sid}));
+            if(inside(bx+24,by+1,10,10))tip=it.name+'の在庫を補充（+5）';
           }
-          if(inside(bx,by,33,32)&&!(fl().stock&&inside(bx+22,by+20,10,10)))tip=it.base?it.name+'（とってから、ボタンで選ぶ）':it.name+'：'+stepsOf(it).map(lab).join('→');
-          badge(bx+14,by-2,bd['c:'+sid]);
-          if(fl().stock)badge(bx+14,by+12,bd['r:'+sid]);
+          if(inside(bx,by,35,33)&&!(fl().stock&&inside(bx+24,by+1,10,10)))tip=it.base?it.name+'（とってから、ボタンで選ぶ）':it.name+'：'+stepsOf(it).map(lab).join('→');
+          badge(bx+12,by-2,bd['c:'+sid]);
+          if(fl().stock)badge(bx+12,by+12,bd['r:'+sid]);
         });
       }else if(l.id==='top'){
         lhit(x0,150,w,118,()=>enqueue({t:'step',st:'top'}));
@@ -1453,59 +1449,62 @@ SC.play={
           R(x0+15,172,6,4,'#fff');R(x0+27,174,6,4,'#fff');R(x0+39,172,6,4,'#fff');
           R(x0+20,224,6,5,'#3aa04a');R(x0+34,230,5,5,'#d9392b');R(x0+28,238,6,4,'#f2c14e');
         }else{
+          // のせるものを選ぶボタン: 枠いっぱいにアイコンを大きく(24px)
           vs.forEach((it,k)=>{
-            const bx=x0+2+(k%2)*32,by=168+Math.floor(k/2)*31;
-            const hov=inside(bx,by,31,30)&&live;
-            card(bx,by,31,30,hov);spr(it.spr,bx+3,by+3,1.5);
-            lhit(bx,by,31,30,()=>enqueue({t:'step',st:'top',variant:it.id}));
-            if(inside(bx,by,31,30))tip=it.name+'をのせる';
+            const bx=x0+2+(k%2)*32,by=168+Math.floor(k/2)*32;
+            const hov=inside(bx,by,31,31)&&live;
+            card(bx,by,31,31,hov);spr(it.spr,bx+3,by+3,1.5);
+            lhit(bx,by,31,31,()=>enqueue({t:'step',st:'top',variant:it.id}));
+            if(inside(bx,by,31,31))tip=it.name+'をのせる';
             badge(bx+10,by-2,bd['p:top:'+it.id]);
           });
-          R(x0+8,240,50,20,'#d9b27a');R(x0+8,240,50,2,'#8a5a2a');
+          box(x0+8,238,50,22,'#d9b27a','#8a5a2a');
         }
         if(inside(x0,150,w,118)&&live&&!tip)tip=stName('top')+'（持っている料理を仕上げる）';
         badge(x0+22,155,bd['p:top:']);
       }else{
         lhit(x0,150,w,118,()=>enqueue({t:'step',st:l.id}));
         const slots=P.st[l.id],n=slots.length,vs=variantList(l.id);
-        const cols=n<=2?n:2,size=n<=2?28:18,gap=n<=2?4:3,rowsN=Math.ceil(n/cols);
-        const total=cols*size+(cols-1)*gap,sx=Math.round(x0+(w-total)/2);
-        const artY=n<=2?204:212;
-        if(vs.length)ctx.globalAlpha=.35;
-        drawApp(art,x0+w/2,artY);ctx.globalAlpha=1;
+        // 基本の2枠は大きく(30px枠・24pxアイコン)。作業台を増設して3枠以上になったら小さめ(20px枠)にして場所を作る
+        const big=n<=2,size=big?30:20,ic=big?24:16,off=(size-ic)/2,gap=2;
+        const colsUsed=Math.min(n,2),total=colsUsed*size+(colsUsed-1)*gap,sx=Math.round(x0+(w-total)/2);
+        if(!vs.length)drawApp(art,x0+w/2,big?204:212); // 選ぶボタンがあるときは、ボタンを大きくするため道具の絵は出さない
         badge(x0+4,155,bd['p:'+l.id+':']);
         slots.forEach((sl,k)=>{
-          const bx=sx+(k%cols)*(size+gap),by=168+Math.floor(k/cols)*(size+3),ic=size-4;
+          const bx=sx+(k%2)*(size+gap),by=168+Math.floor(k/2)*(size+2);
           box(bx,by,size,size,'#14181e','#05070a');
           if(sl.dish){
             const it=IT[sl.dish.id],stp=stepOf(sl.dish);
             if(sl.state==='cook'){
               const f=Math.min(1,sl.p/stepTime(stp,it));
-              drawDish(sl.dish,bx+2,by+2,ic,f);
+              drawDish(sl.dish,bx+off,by+off,ic,f);
               R(bx+2,by+size-4,size-4,3,'#1e1214');R(bx+2,by+size-4,Math.round((size-4)*f),3,'#6fd36a');
             }else if(sl.state==='ready'){
               const bb=Math.round(Math.abs(Math.sin(T*6))*2);
-              drawDish(sl.dish,bx+2,by+2-bb,ic,1);
+              drawDish(sl.dish,bx+off,by+off-bb,ic,1);
               if(burnable(l.id)&&!stp.batch){const f=1-sl.rt/8;R(bx+2,by+size-4,size-4,3,'#1e1214');R(bx+2,by+size-4,Math.max(0,Math.round((size-4)*f)),3,f>.5?'#6fd36a':f>.25?'#ffd84a':'#ff5a4a')}
               if(sl.left>1)txt('×'+sl.left,bx+size,by-1,8,'#ffe066','right','#000');
               else if(Math.floor(T*4)%2)txt('✦',bx+size-4,by-5,8,'#ffe066','center');
             }else{
-              spr(it.sprBurnt,bx+2,by+2,ic/16);txt('×',bx+size/2,by+2,14,'#ff5a4a','center','#000');
+              spr(it.sprBurnt,bx+off,by+off,ic/16);txt('×',bx+size/2,by+2,14,'#ff5a4a','center','#000');
             }
             lhit(bx,by,size,size,()=>enqueue({t:'take',st:l.id,k}));
             if(inside(bx,by,size,size))tip=sl.state==='burnt'?'こげてる！ タップですてに行く':sl.state==='ready'?it.name+'（タップで取り出す）':it.name+' 調理中…（タップで完成を待つ）';
             badge(bx,by+size-8,bd['t:'+l.id+':'+k]);
           }
         });
-        // 選ぶボタン（ドリンクの味・ソース・ネタなど）
-        const vy=n<=2?200:212,ch=n<=2?29:28;
+        // 選ぶボタン（ドリンクの味・ソース・ネタなど）: 枠いっぱいにアイコンを大きく(24px)
+        const vy=big?200:214,ch=big?31:26;
+        // 選べるのが2つ以下なら、縦に並べて32pxの大きなボタンにする
+        const tall=big&&vs.length<=2;
         vs.forEach((it,k)=>{
-          const bx=x0+2+(k%2)*32,by=vy+Math.floor(k/2)*(ch+1);
-          const hov=inside(bx,by,31,ch)&&live;
-          card(bx,by,31,ch,hov);spr(it.spr,bx+3,by+2,1.5);
-          lhit(bx,by,31,ch,()=>enqueue({t:'step',st:l.id,variant:it.id}));
-          if(inside(bx,by,31,ch))tip=it.name+'を作る（ボタンで選ぶ）';
-          badge(bx+8,by-2,bd['p:'+l.id+':'+it.id]);
+          const bx=tall?x0+2:x0+2+(k%2)*32,by=tall?vy+k*34:vy+Math.floor(k/2)*(ch+1),bw=tall?62:31,bh=tall?33:ch;
+          const hov=inside(bx,by,bw,bh)&&live;
+          card(bx,by,bw,bh,hov);
+          if(tall)spr(it.spr,bx+15,by+1,2);else spr(it.spr,bx+3,by+Math.floor((ch-24)/2),1.5);
+          lhit(bx,by,bw,bh,()=>enqueue({t:'step',st:l.id,variant:it.id}));
+          if(inside(bx,by,bw,bh))tip=it.name+'を作る（ボタンで選ぶ）';
+          badge(bx+(tall?26:8),by-2,bd['p:'+l.id+':'+it.id]);
         });
         if(!vs.length&&inside(x0,150,w,118)&&live&&!tip)tip=stName(l.id)+'（入れる／できあがりを待って取り出す）';
       }
