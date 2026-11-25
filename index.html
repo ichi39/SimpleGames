@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SimpleGames - ゲーム一覧</title>
+<style>
+:root{--bg:#1f1426;--card:#2f2038;--line:#5a3a6a;--accent:#ffd84a;--text:#fff6e0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic","Meiryo",sans-serif}
+header{padding:32px 20px 8px;text-align:center}
+h1{margin:0;font-size:28px;color:var(--accent);letter-spacing:.05em}
+header p{margin:8px 0 0;color:#cdb8d8;font-size:14px}
+main{max-width:960px;margin:0 auto;padding:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px}
+.card{display:block;background:var(--card);border:3px solid var(--line);border-radius:6px;color:inherit;text-decoration:none;overflow:hidden;box-shadow:0 4px 0 #0006;transition:transform .1s}
+.card:hover,.card:focus-visible{transform:translateY(-3px);border-color:var(--accent);outline:none}
+.thumb{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;object-position:top;image-rendering:pixelated;background:#ccc}
+.body{padding:12px 14px 14px}
+.body h2{margin:0 0 6px;font-size:18px}
+.body p{margin:0 0 10px;font-size:13px;line-height:1.6;color:#e0d0e8}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tags span{font-size:11px;padding:2px 8px;border:1px solid var(--line);border-radius:10px;color:var(--accent)}
+footer{text-align:center;padding:24px;color:#9a86a6;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>SimpleGames</h1>
+  <p>ブラウザですぐ遊べる、ひとりで作ったミニゲーム集</p>
+</header>
+<main>
+  <div class="grid">
+    <!-- ゲームを追加するときは、このカードをコピーして games/<ゲーム名>/ へのリンクを書き換える -->
+    <a class="card" href="games/namaste-shokudo/">
+      <img class="thumb" src="games/namaste-shokudo/thumb.png" alt="ナマステ食堂のドット絵メニュー">
+      <div class="body">
+        <h2>ナマステ食堂</h2>
+        <p>お父さんの代わりにインド料理のテイクアウト店を切り盛りするタイムマネジメントゲーム。ケバブから始めて、日本一を目指そう。</p>
+        <div class="tags"><span>ドット絵</span><span>タイムマネジメント</span><span>全10日</span></div>
+      </div>
+    </a>
+  </div>
+</main>
+<footer>© ichi39</footer>
+</body>
+</html>
