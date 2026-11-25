@@ -37,7 +37,7 @@ function wrap(s,maxW,sz){
 const spr=(c,x,y,s,a)=>{if(a!==undefined)ctx.globalAlpha=a;ctx.drawImage(c,Math.round(x),Math.round(y),c.width*s,c.height*s);if(a!==undefined)ctx.globalAlpha=1};
 const rnd=(a,b)=>a+Math.random()*(b-a);
 const pick=a=>a[Math.floor(Math.random()*a.length)];
-const yen=n=>'¥'+Math.round(n).toLocaleString('en-US');
+const yen=n=>(n<0?'-¥':'¥')+Math.abs(Math.round(n)).toLocaleString('en-US');
 
 /* ---------- ドット絵ビルダ ---------- */
 const PAL={
@@ -306,9 +306,10 @@ function startBgm(){
 
 /* ---------- セーブ ---------- */
 const KEY='namaste_shokudo_v1';
-function loadSave(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.day)return s}catch(e){}return null}
+function fixSave(g){g.up=Object.assign({cap:0,tray:0,walk:0,pat:0,spd:0,decor:0},g.up||{});g.itemUp=g.itemUp||{};return g}
+function loadSave(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.day)return fixSave(s)}catch(e){}return null}
 function saveGame(){try{localStorage.setItem(KEY,JSON.stringify(G))}catch(e){}}
-function newGame(){return{day:1,cash:0,up:{cap:0,walk:0,pat:0,spd:0,decor:0},cleared:false,intro:false}}
+function newGame(){return{day:1,cash:0,up:{cap:0,tray:0,walk:0,pat:0,spd:0,decor:0},itemUp:{},cleared:false,intro:false}}
 let G=newGame();
 
 /* ---------- 入力 ---------- */
@@ -347,14 +348,21 @@ function calcGoal(d){
   return Math.max(500,Math.round(c.dur/c.interval*avg*k*.42/100)*100);
 }
 const UPS=[
- {id:'cap',  name:'キッチン拡張',     desc:'各調理場の同時調理数 +1',  cost:[6000]},
- {id:'walk', name:'ダッシュ特訓',     desc:'歩くスピード +20%',         cost:[3500,7000,12000]},
- {id:'pat',  name:'おもてなし',       desc:'お客さんの待ち時間 +15%',   cost:[3000,6500,11000]},
- {id:'spd',  name:'スパイス修行',     desc:'調理時間 -12%',             cost:[4000,8000,13000]},
- {id:'decor',name:'お店のリフォーム', desc:'お店がきれいに & チップ +10%',cost:[5000,10000,18000,30000]},
+ {id:'cap',  name:'キッチン拡張',     desc:'各調理場の同時調理数 +1',      cost:[6000]},
+ {id:'tray', name:'お盆',             desc:'持てる料理の数 +1（最大4つ）', cost:[6000,12000]},
+ {id:'walk', name:'ダッシュ特訓',     desc:'歩くスピード +20%',            cost:[3500,7000,12000]},
+ {id:'pat',  name:'おもてなし',       desc:'お客さんの待ち時間 +15%',      cost:[3000,6500,11000]},
+ {id:'spd',  name:'スパイス修行',     desc:'全メニューの調理時間 -12%',    cost:[4000,8000,13000]},
+ {id:'decor',name:'お店のリフォーム', desc:'お店がきれいに & チップ +10%', cost:[5000,10000,18000,30000]},
 ];
 const capOf=()=>2+G.up.cap;
-const HANDS=2,QMAX=6;
+const QMAX=6;
+const handsMax=()=>2+(G.up.tray||0);
+// 品物ごとのアップグレード（最大Lv3: 価格+15%/Lv、調理時間-8%/Lv）
+const ilv=id=>(G.itemUp&&G.itemUp[id])||0;
+const iprice=it=>Math.round(it.price*(1+.15*ilv(it.id))/10)*10;
+const wasteCost=it=>Math.round(iprice(it)*.4/10)*10;
+const itemUpCost=(it,lv)=>Math.round(it.price*[2.5,5,8][lv]/100)*100;
 const SLOT_X=[104,196,288,380];
 
 /* ---------- シーン管理 ---------- */
@@ -415,7 +423,8 @@ function dayPages(d){
    case 2:
     P.push({bg:'shop',who:'',text:'チキンケバブの評判が口コミで広がり、\n新しいお客さんがどんどんやって来る！',chars:[]});
     unlock('ヘルシーな「グリーンサラダ」が解禁！');
-    say('ケンタ','お肉だけじゃなく、野菜もとってもらわなきゃ！\nただし、グリルに置きっぱなしだと焦げちゃうぞ！');break;
+    say('ケンタ','お肉だけじゃなく、野菜もとってもらわなきゃ！\nただし、グリルに置きっぱなしだと焦げちゃうぞ！');
+    say('ケンタ','両手がふさがったら、右はしのゴミ箱に捨てられるよ。\nでも材料がもったいないから、お金が減っちゃう…！');break;
    case 3:
     P.push({bg:'hospital',who:'お父さん',text:'ケンタ、順調だそうだな。\nスパイスの香りで喉がかわくお客さんには、冷たいラッシーがおすすめだぞ。',chars:[{k:'dad',x:240,o:{bed:true,sick:true}}]});
     unlock('ドリンク「ラッシー」が解禁！');break;
@@ -530,7 +539,7 @@ function startPlay(){
   const c=dayConf(G.day);
   P={day:G.day,conf:c,t:c.dur,money:0,goal:calcGoal(G.day),slots:[null,null,null,null],leaving:[],st:{},hands:[],q:[],
      boy:{x:240,state:'idle',act:0},
-     spawn:.6,combo:0,maxCombo:0,served:0,lost:0,tips:0,floats:[],parts:[],msg:'',msgT:0,over:0,count:2.2,paused:false,burned:0};
+     spawn:.6,combo:0,maxCombo:0,served:0,lost:0,tips:0,floats:[],parts:[],msg:'',msgT:0,over:0,count:2.2,paused:false,burned:0,waste:0,closed:false,banner:0};
   STATIONS.forEach(s=>P.st[s.id]=[null,null,null]);
   scene='play';
 }
@@ -565,7 +574,7 @@ function dismiss(c,mood){
   const i=P.slots.indexOf(c);if(i<0)return;
   c.state='leave';c.mood=mood;c.lt=.9;P.leaving.push(c);P.slots[i]=null;compact();
 }
-function cookTime(it){return it.t*(1-.12*G.up.spd)}
+function cookTime(it){return it.t*(1-.12*G.up.spd)*(1-.08*ilv(it.id))}
 function doCook(it){
   const arr=P.st[it.st],cap=capOf();
   let k=-1;for(let j=0;j<cap;j++)if(!arr[j]){k=j;break}
@@ -573,15 +582,17 @@ function doCook(it){
   arr[k]={id:it.id,state:'cook',p:0,rt:0};SFX.cook();
 }
 /* ---- 予約キュー: タップした順に主人公が動く ---- */
-const STX={};STATIONS.forEach((s,i)=>STX[s.id]=48+96*i);
+const STX={};STATIONS.forEach((s,i)=>STX[s.id]=48+96*i);STX.trash=424; // ゴミ箱(x=456)の手前に立つ
 function enqueue(a){
   if(P.q.length>=QMAX){say('よやくがいっぱい！');SFX.bad();return}
   if(a.t==='take'&&P.q.some(b=>b.t==='take'&&b.st===a.st&&b.k===a.k))return;
+  if(a.t==='trash'&&P.q.some(b=>b.t==='trash'))return;
   P.q.push(a);SFX.click();
 }
-function actX(a){return a.t==='serve'?a.c.x:STX[a.t==='cook'?IT[a.item].st:a.st]}
+function actX(a){return a.t==='serve'?a.c.x:a.t==='trash'?STX.trash:STX[a.t==='cook'?IT[a.item].st:a.st]}
 function actValid(a){
   if(a.t==='take')return !!P.st[a.st][a.k];
+  if(a.t==='trash')return P.hands.length>0;
   if(a.t==='serve')return a.c.state==='wait'&&P.slots.includes(a.c);
   return true;
 }
@@ -590,8 +601,13 @@ function perform(a){
   else if(a.t==='take'){
     const arr=P.st[a.st],s=arr[a.k];if(!s)return;
     if(s.state==='burnt'){arr[a.k]=null;say('こげちゃった…すてました');SFX.bad();return}
-    if(P.hands.length>=HANDS){say('りょう手がふさがってる！');SFX.bad();return}
+    if(P.hands.length>=handsMax()){say('手がいっぱい！ ゴミ箱で捨てられるよ');SFX.bad();return}
     P.hands.push(s.id);arr[a.k]=null;SFX.take();
+  }else if(a.t==='trash'){
+    if(!P.hands.length)return;
+    let loss=0;P.hands.forEach(id=>{loss+=wasteCost(IT[id])});
+    P.money-=loss;P.waste+=loss;P.hands=[];
+    float(P.boy.x,126,'すてた -'+yen(loss),'#ff7a6a');SFX.bad();
   }else if(a.t==='serve')serveCust(a.c);
 }
 function updateBoy(dt){
@@ -612,16 +628,20 @@ function updateBoy(dt){
 function serveCust(c){
   if(!c||c.state!=='wait')return;
   let n=0;
+  const frac=Math.max(0,c.pat/c.max); // チップは渡す前の機嫌で決まる
   c.need.forEach(nd=>{
     if(nd.done)return;
     const k=P.hands.indexOf(nd.id);
-    if(k>=0){P.hands.splice(k,1);nd.done=true;n++;sparkle(c.x,80,6)}
+    if(k>=0){
+      P.hands.splice(k,1);nd.done=true;n++;sparkle(c.x,80,6);
+      c.pat=Math.min(c.max,c.pat+c.max*.12); // 料理をもらうと機嫌が少し回復
+    }
   });
+  if(n&&!c.need.every(nd=>nd.done))float(c.x,60,'♥ きげんUP','#ff9fd0');
   if(!n){c.shake=.3;say('ほしいのは ふきだしの料理だよ！');SFX.bad();return}
   SFX.serve();
   if(c.need.every(nd=>nd.done)){
-    const base=c.need.reduce((s,nd)=>s+IT[nd.id].price,0);
-    const frac=Math.max(0,c.pat/c.max);
+    const base=c.need.reduce((s,nd)=>s+iprice(IT[nd.id]),0);
     const tip=Math.round(base*.5*frac*(1+.1*G.up.decor)/10)*10;
     P.combo++;P.maxCombo=Math.max(P.maxCombo,P.combo);
     const mult=1+Math.min(P.combo-1,8)*.05;
@@ -634,6 +654,9 @@ function serveCust(c){
     dismiss(c,'happy');
   }
 }
+function loseDish(it,x,label){
+  const c=wasteCost(it);P.money-=c;P.waste+=c;float(x,126,label+' -'+yen(c),'#ff7a6a');
+}
 function updatePlay(dt){
   if(P.paused)return;
   P.floats.forEach(f=>f.t+=dt);P.floats=P.floats.filter(f=>f.t<1.2);
@@ -641,18 +664,21 @@ function updatePlay(dt){
   if(P.msgT>0)P.msgT-=dt;
   P.leaving.forEach(c=>c.lt-=dt);P.leaving=P.leaving.filter(c=>c.lt>0);
   if(P.count>0){P.count-=dt;return}
-  if(P.t<=0){P.over+=dt;if(P.over>2)showResult();return}
-  P.t-=dt;
+  if(P.banner>0)P.banner-=dt;
+  // 営業時間。閉店後は新しいお客さんが来ないが、いまいるお客さんは対応できる
+  if(!P.closed){P.t-=dt;if(P.t<=0){P.t=0;P.closed=true;P.banner=2.4;SFX.fanfare()}}
   // 調理
   for(const sid in P.st)P.st[sid].forEach((s,i)=>{
     if(!s)return;const it=IT[s.id];
     if(s.state==='cook'){s.p+=dt;if(s.p>=cookTime(it)){s.state='ready';s.rt=0;SFX.ready()}}
-    else if(s.state==='ready'&&it.burn){s.rt+=dt;if(s.rt>8){s.state='burnt';SFX.burn();P.burned++}}
+    else if(s.state==='ready'&&it.burn){s.rt+=dt;if(s.rt>8){s.state='burnt';SFX.burn();P.burned++;loseDish(it,STX[it.st],'こげた！')}}
   });
   updateBoy(dt);
   // お客さん
-  P.spawn-=dt;
-  if(P.spawn<=0){if(spawnCust())P.spawn=P.conf.interval*rnd(.7,1.3);else P.spawn=.8}
+  if(!P.closed){
+    P.spawn-=dt;
+    if(P.spawn<=0){if(spawnCust())P.spawn=P.conf.interval*rnd(.7,1.3);else P.spawn=.8}
+  }
   P.slots.slice().forEach(c=>{
     if(!c)return;
     if(c.shake>0)c.shake-=dt;
@@ -666,6 +692,8 @@ function updatePlay(dt){
       if(c.pat<=0){P.lost++;P.combo=0;dismiss(c,'angry');say('お客さんが帰っちゃった…');SFX.bad()}
     }
   });
+  // 閉店後、お客さんが全員いなくなったら一日おしまい
+  if(P.closed&&!P.slots.some(Boolean)&&!P.leaving.length){P.over+=dt;if(P.over>1.8)showResult()}
 }
 function drawBubble(c){
   const n=c.need.length,w=n*27+5,x=Math.round(c.x-w/2),y=20;
@@ -705,8 +733,15 @@ function decor(level){
   if(level>=3){R(0,88,W,16,'#d98a3a');for(let x=0;x<W;x+=12){R(x+4,92,4,4,'#f2c14e')}}
   if(level>=4){R(0,14,W,1,'#ffd84a');R(0,102,W,2,'#ffd84a')}
 }
+function drawTrash(x,y){
+  ctx.fillStyle='#00000033';ctx.beginPath();ctx.ellipse(x,y+27,13,3,0,0,7);ctx.fill();
+  box(x-11,y+5,22,22,'#9aa5b0','#3b2418');
+  for(let i=0;i<3;i++)R(x-6+i*6,y+9,2,14,'#7a8590');
+  box(x-13,y+1,26,5,'#b6c0ca','#3b2418');R(x-4,y-2,8,3,'#59606a');
+}
 function hintText(){
   if(P.msgT>0)return P.msg;
+  if(P.closed)return '閉店！ のこりのお客さんに届けよう';
   if(P.day>2)return '';
   const serveQ=P.q.some(a=>a.t==='serve');
   const ready=Object.values(P.st).some(a=>a.some(s=>s&&s.state==='ready'));
@@ -723,20 +758,21 @@ function badge(x,y,list){
 SC.play={
   update(dt){updatePlay(dt)},
   draw(){
-    const live=!P.paused&&P.count<=0&&P.t>0;
+    const live=!P.paused&&P.count<=0;
     const lhit=(x,y,w,h,fn)=>{if(live)hit(x,y,w,h,fn)};
     let tip='';
     // 予約番号
     const bd={},cb=new Map();
     P.q.forEach((a,i)=>{
       if(a.t==='serve'){if(!cb.has(a.c))cb.set(a.c,[]);cb.get(a.c).push(i+1)}
-      else{const key=a.t==='cook'?'c:'+a.item:'t:'+a.st+':'+a.k;(bd[key]=bd[key]||[]).push(i+1)}
+      else{const key=a.t==='cook'?'c:'+a.item:a.t==='trash'?'trash':'t:'+a.st+':'+a.k;(bd[key]=bd[key]||[]).push(i+1)}
     });
     // 壁
     R(0,14,W,92,'#f6e2ae');for(let x=0;x<W;x+=16)R(x,14,8,92,'#f3d99b');
     decor(G.up.decor);
     box(4,24,58,24,'#8a4b25','#3b2418');box(6,26,54,20,'#b8662f','#3b2418');
     txt('ナマステ',33,28,9,'#fff3d0','center','#5a2a12');txt('食堂',33,37,8,'#ffe066','center','#5a2a12');
+    box(432,22,42,14,P.closed?'#d9392b':'#2f8a3a','#3b2418');txt(P.closed?'CLOSED':'OPEN',453,25,7,'#fff','center');
     // お客さん
     P.leaving.forEach(c=>drawCust(c));
     P.slots.forEach(c=>{
@@ -754,8 +790,15 @@ SC.play={
     const bob=b.state==='walk'?-Math.abs(Math.round(Math.sin(T*16)*2)):b.state==='act'?-3:0;
     ctx.fillStyle='#0000003a';ctx.beginPath();ctx.ellipse(b.x,146,11,3,0,0,7);ctx.fill();
     spr(b.state==='act'||P.combo>=3?BOY_JOY:BOY,b.x-16,114+bob,2);
-    P.hands.forEach((id,k)=>spr(IT[id].spr,b.x-18+k*20,128+bob,1));
+    const hw=handsMax()*17,hx=Math.round(b.x-hw/2);
+    if((G.up.tray||0)>0){box(hx-3,141+bob,hw+6,5,'#cfd6dc','#59606a')}
+    P.hands.forEach((id,k)=>spr(IT[id].spr,hx+k*17,128+bob,1));
     if(b.state==='wait')txt('…',b.x,106+bob,12,'#3b2418','center','#fff');
+    // ゴミ箱
+    drawTrash(456,121);
+    lhit(440,116,32,32,()=>enqueue({t:'trash'}));
+    badge(444,113,bd.trash);
+    if(inside(440,116,32,32))tip='ゴミ箱（持っている料理をすてる ※お金が減る）';
     // 予約リスト
     txt('よやく',6,51,8,'#3b2418','left','#fff4c8');
     P.q.forEach((a,i)=>{
@@ -764,9 +807,10 @@ SC.play={
       let ic=null;
       if(a.t==='cook')ic=IT[a.item].spr;
       else if(a.t==='take'){const sl=P.st[a.st][a.k];if(sl)ic=IT[sl.id].spr}
+      else if(a.t==='trash'){R(qx+5,qy+5,8,10,'#7a8590');R(qx+4,qy+4,10,2,'#59606a')}
       else ic=a.c.spr;
       if(ic)ctx.drawImage(ic,qx+1,qy+1,16,16);
-      txt(a.t==='cook'?'▶':a.t==='take'?'↑':'♥',qx+16,qy+9,7,a.t==='serve'?'#d9392b':'#3b2418','right','#fff');
+      txt(a.t==='cook'?'▶':a.t==='take'?'↑':a.t==='trash'?'':'♥',qx+16,qy+9,7,a.t==='serve'?'#d9392b':'#3b2418','right','#fff');
       lhit(qx,qy,18,18,()=>{P.q.splice(i,1);SFX.click()});
       if(inside(qx,qy,18,18))tip='よやくを取り消す';
     });
@@ -808,7 +852,7 @@ SC.play={
         const hov=inside(bx,by,43,35)&&live;
         box(bx,by,43,35,hov?'#a8806a':'#7a5a4a','#2a1a1e');
         spr(it.spr,bx+10,by+2,1.5);
-        txt(yen(it.price),bx+21,by+26,8,'#ffe066','center','#2a1a1e');
+        txt(yen(iprice(it)),bx+21,by+26,8,'#ffe066','center','#2a1a1e');
         lhit(bx,by,43,35,()=>enqueue({t:'cook',item:it.id}));
         if(inside(bx,by,43,35))tip=it.name+'  '+cookTime(it).toFixed(1)+'秒';
         badge(bx+26,by-2,bd['c:'+it.id]);
@@ -816,7 +860,9 @@ SC.play={
     });
     const ht=hintText();
     if(ht)wrap(ht,150,8).slice(0,2).forEach((l,i)=>txt(l,6,117+i*10,8,'#fff4c8','left','#3b2418'));
-    if(tip)txt(tip,474,141,8,'#fff','right','#3b2418');
+    if(tip)txt(tip,436,141,8,'#fff','right','#3b2418');
+    P.parts.forEach(p=>R(Math.round(p.x),Math.round(p.y),2,2,p.col));
+    P.floats.forEach(f=>{ctx.globalAlpha=Math.max(0,1-f.t/1.2);txt(f.s,Math.round(f.x),Math.round(f.y-f.t*18),9,f.col,'center','#3b2418');ctx.globalAlpha=1});
     drawHUD(live,lhit);
     // オーバーレイ
     if(P.count>0){
@@ -824,7 +870,8 @@ SC.play={
       if(P.count>1.1){txt('DAY '+P.day,240,112,26,'#ffe066','center','#3b2418');txt('目標 '+yen(P.goal),240,146,11,'#fff','center','#3b2418')}
       else txt('スタート！',240,122,26,'#fff','center','#d9392b');
     }
-    if(P.t<=0){R(0,100,W,70,'#000000aa');txt('TIME UP!',240,122,28,'#ffe066','center','#d9392b')}
+    if(P.closed&&P.banner>0){R(0,100,W,56,'#000000aa');txt('閉店！',240,106,26,'#ffe066','center','#d9392b');txt('のこりのお客さんには、料理を届けよう',240,140,10,'#fff','center','#3b2418')}
+    else if(P.closed&&P.over>0){R(0,108,W,40,'#000000aa');txt('おつかれさま！',240,116,22,'#fff','center','#3b2418')}
     if(P.paused){
       R(0,0,W,H,'#000000bb');txt('ポーズ中',240,80,22,'#fff','center','#3b2418');
       button(170,120,140,24,'つづける',()=>{P.paused=false});
@@ -833,16 +880,20 @@ SC.play={
   }
 };
 function cap2(){return capOf()}
+function clockStr(){
+  const frac=P.conf.dur?1-P.t/P.conf.dur:1,m=600+Math.round(frac*720); // 10:00 → 22:00
+  return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+}
 function drawHUD(live,lhit){
   R(0,0,W,14,'#2a1a2e');R(0,13,W,1,'#5a3a6a');
   txt('DAY '+P.day,6,3,8,'#ffd84a');
-  const bx=44,bw=150,sc=P.goal*1.8,f=Math.min(1,P.money/sc);
+  const bx=44,bw=150,sc=P.goal*1.8,f=Math.max(0,Math.min(1,P.money/sc));
   R(bx,3,bw,8,'#000');R(bx+1,4,bw-2,6,'#3a2a3e');
   R(bx+1,4,Math.round((bw-2)*f),6,P.money>=P.goal*1.4?'#ffd84a':P.money>=P.goal?'#6fd36a':'#f7931e');
   R(bx+Math.round(bw*P.goal/sc),2,1,10,'#fff');R(bx+Math.round(bw*P.goal*1.4/sc),2,1,10,'#fff');
   txt(yen(P.money)+' / '+yen(P.goal),bx+bw+6,3,8,'#fff');
   if(P.combo>=2)txt('COMBO ×'+P.combo,300,3,8,'#ff9fd0');
-  txt('のこり '+Math.max(0,Math.ceil(P.t))+'秒',372,3,8,P.t<10?'#ff6a5a':'#fff');
+  txt(clockStr()+(P.closed?' 閉店':''),372,3,8,P.closed?'#ff6a5a':P.t<10?'#ffd84a':'#fff');
   if(live||P.paused){hit(446,1,14,12,()=>{P.paused=!P.paused;SFX.click()});}
   box(446,1,14,12,'#5a3a6a','#000');txt('Ⅱ',453,2,9,'#fff','center');
   drawMute();
@@ -852,7 +903,7 @@ function drawHUD(live,lhit){
 let RS=null;
 function showResult(){
   const win=P.money>=P.goal,stars=P.money>=P.goal*1.8?3:P.money>=P.goal*1.4?2:win?1:0;
-  RS={win,stars,money:P.money,goal:P.goal,served:P.served,lost:P.lost,combo:P.maxCombo,tips:P.tips,day:P.day,t:0};
+  RS={win,stars,money:P.money,goal:P.goal,served:P.served,lost:P.lost,combo:P.maxCombo,tips:P.tips,waste:P.waste,day:P.day,t:0};
   if(win){G.cash+=P.money;G.day=P.day+1;if(P.day>=10)G.cleared=true;saveGame();SFX.fanfare()}else SFX.bad();
   scene='result';
 }
@@ -866,14 +917,13 @@ SC.result={
       const on=RS.win&&i<RS.stars&&RS.t>.4+i*.35;
       txt('★',170+i*70,62+(on?Math.round(Math.sin(T*6+i)*2):0),30,on?'#ffb000':'#cfc6b0','center',on?'#8a4a00':'#aaa');
     }
-    const rows=[['売上',yen(RS.money)],['目標',yen(RS.goal)],['チップ',yen(RS.tips)],['お客さん',RS.served+'人'],['帰っちゃった',RS.lost+'人'],['さいだいコンボ','×'+RS.maxCombo||RS.combo]];
-    rows[5][1]='×'+RS.combo;
-    rows.forEach((r,i)=>{txt(r[0],120,106+i*16,10,'#5a3a2a');txt(r[1],360,106+i*16,10,'#3b2418','right')});
+    const rows=[['売上（ロス引き後）',yen(RS.money)],['目標',yen(RS.goal)],['チップ',yen(RS.tips)],['廃棄ロス','-'+yen(RS.waste)],['お客さん',RS.served+'人'],['帰っちゃった',RS.lost+'人'],['さいだいコンボ','×'+RS.combo]];
+    rows.forEach((r,i)=>{txt(r[0],120,98+i*14,9,'#5a3a2a');txt(r[1],360,98+i*14,9,'#3b2418','right')});
     if(RS.win){
-      txt('所持金 '+yen(G.cash),240,206,10,'#2f8a3a','center');
+      txt('所持金 '+yen(G.cash),240,203,10,'#2f8a3a','center');
       button(150,224,180,22,'お店をととのえる',()=>toShop(false),{sz:10});
     }else{
-      txt('目標まであと '+yen(RS.goal-RS.money),240,196,10,'#d9392b','center');
+      txt('目標まであと '+yen(RS.goal-RS.money),240,200,10,'#d9392b','center');
       button(110,218,120,24,'もう一度',()=>startPlay(),{sz:10});
       button(250,218,120,24,'タイトルへ',()=>{scene='title'},{sz:10,col:'#6a5a7a'});
     }
@@ -883,22 +933,40 @@ SC.result={
 
 /* ===== ショップ ===== */
 function toShop(){scene='shop'}
+let shopTab=0;
+const unlockedForUp=()=>ITEMS.filter(it=>it.day<=Math.max(1,Math.min(G.day-1,10)));
 SC.shop={
   draw(){
     R(0,0,W,H,'#3a2438');for(let x=0;x<W;x+=24)R(x,0,12,H,'#40283e');
-    txt('お店をととのえる',20,10,16,'#ffe066','left','#3b2418');
-    txt('所持金 '+yen(G.cash),460,12,12,'#fff','right','#3b2418');
-    UPS.forEach((u,i)=>{
-      const y=40+i*38,lv=G.up[u.id]||0,max=u.cost.length;
-      box(14,y,452,34,'#5e4a63','#1e1214');
-      txt(u.name,24,y+4,10,'#fff');txt(u.desc,24,y+19,8,'#d8c8e0',  'left',null,false);
-      for(let k=0;k<max;k++)R(262+k*12,y+13,9,9,k<lv?'#ffd84a':'#2a1a2e');
-      if(lv>=max)button(366,y+5,90,24,'MAX',()=>{},{disabled:true,sz:9});
-      else{const c=u.cost[lv];button(366,y+5,90,24,yen(c),()=>{G.cash-=c;G.up[u.id]=(G.up[u.id]||0)+1;saveGame();SFX.coin()},{disabled:G.cash<c,sz:10,col:'#3a8a5a'})}
-    });
+    txt('お店をととのえる',20,6,14,'#ffe066','left','#3b2418');
+    txt('所持金 '+yen(G.cash),460,8,12,'#fff','right','#3b2418');
+    button(14,26,92,14,'お店',()=>{shopTab=0},{sz:8,col:shopTab===0?'#e8742a':'#5a3a6a'});
+    button(110,26,92,14,'メニュー',()=>{shopTab=1},{sz:8,col:shopTab===1?'#e8742a':'#5a3a6a'});
+    if(shopTab===0){
+      UPS.forEach((u,i)=>{
+        const y=46+i*31,lv=G.up[u.id]||0,max=u.cost.length;
+        box(14,y,452,29,'#5e4a63','#1e1214');
+        txt(u.name,24,y+3,9,'#fff');txt(u.desc,24,y+16,8,'#d8c8e0','left',null,false);
+        for(let k=0;k<max;k++)R(262+k*12,y+10,9,9,k<lv?'#ffd84a':'#2a1a2e');
+        if(lv>=max)button(366,y+4,90,21,'MAX',()=>{},{disabled:true,sz:9});
+        else{const c=u.cost[lv];button(366,y+4,90,21,yen(c),()=>{G.cash-=c;G.up[u.id]=lv+1;saveGame();SFX.coin()},{disabled:G.cash<c,sz:9,col:'#3a8a5a'})}
+      });
+    }else{
+      txt('メニューを磨くと 値段 +15% ＆ 調理時間 -8%（Lv3まで）',16,44,8,'#d8c8e0','left',null,false);
+      unlockedForUp().forEach((it,i)=>{
+        const x=14+(i%2)*232,y=56+Math.floor(i/2)*30,lv=ilv(it.id);
+        box(x,y,220,28,'#5e4a63','#1e1214');
+        spr(it.spr,x+2,y+2,1.5);
+        txt(it.name,x+30,y+3,8,'#fff');
+        for(let k=0;k<3;k++)R(x+118+k*8,y+4,6,6,k<lv?'#ffd84a':'#2a1a2e');
+        txt(yen(iprice(it))+'  '+cookTime(it).toFixed(1)+'秒',x+30,y+16,7,'#d8c8e0','left',null,false);
+        if(lv>=3)button(x+148,y+3,68,22,'MAX',()=>{},{disabled:true,sz:8});
+        else{const c=itemUpCost(it,lv);button(x+148,y+3,68,22,yen(c),()=>{G.cash-=c;G.itemUp[it.id]=lv+1;saveGame();SFX.coin()},{disabled:G.cash<c,sz:8,col:'#3a8a5a'})}
+      });
+    }
     const next=Math.min(G.day,10);
-    txt('つぎは DAY '+next+(G.day>10?'（最終日）':'')+'   目標 '+yen(calcGoal(next)),20,238,10,'#fff','left','#3b2418');
-    button(340,232,130,26,G.day>10?'エンディングへ':'つぎの日へ',()=>{
+    txt('つぎは DAY '+next+(G.day>10?'（最終日）':'')+'   目標 '+yen(calcGoal(next)),20,246,10,'#fff','left','#3b2418');
+    button(340,240,130,24,G.day>10?'エンディングへ':'つぎの日へ',()=>{
       if(G.day>10)startStory(ENDING,()=>{scene='ending';SFX.fanfare()});
       else if(G.day===1&&!G.intro)startStory(PROLOGUE.concat(dayPages(1)),()=>{G.intro=true;saveGame();startPlay()});
       else startStory(dayPages(G.day),startPlay);
