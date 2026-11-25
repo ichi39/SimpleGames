@@ -2,12 +2,14 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
 <title>ナマステ食堂 〜ケンタの日本一カレー物語〜</title>
 <style>
-html,body{margin:0;height:100%;background:#1b0f1f;overflow:hidden}
-body{display:flex;align-items:center;justify-content:center}
-canvas{image-rendering:pixelated;width:min(100vw,177.78vh);aspect-ratio:16/9;touch-action:none;background:#000;display:block;cursor:pointer;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;background:#1b0f1f;overflow:hidden;overscroll-behavior:none}
+/* スマホでは 100vh が実際の表示領域より大きくなるので、body を画面いっぱいに固定し、サイズは JS で計算する */
+body{position:fixed;inset:0;box-sizing:border-box;display:flex;align-items:center;justify-content:center;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+canvas{image-rendering:pixelated;width:100%;aspect-ratio:16/9;touch-action:none;background:#000;display:block;cursor:pointer;-webkit-tap-highlight-color:transparent}
 </style>
 </head>
 <body>
@@ -18,6 +20,20 @@ canvas{image-rendering:pixelated;width:min(100vw,177.78vh);aspect-ratio:16/9;tou
    ナマステ食堂  - 1ファイル完結のドット絵タイムマネジメントゲーム
    ===================================================================== */
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+// 画面（ノッチなどの余白を除いた表示領域）に 16:9 のキャンバスをぴったり収める
+function fitCanvas(){
+  const b=document.body,cs=getComputedStyle(b),vv=window.visualViewport;
+  const pad=k=>parseFloat(cs[k])||0;
+  const aw=(vv?Math.min(vv.width,b.clientWidth):b.clientWidth)-pad('paddingLeft')-pad('paddingRight');
+  const ah=(vv?Math.min(vv.height,b.clientHeight):b.clientHeight)-pad('paddingTop')-pad('paddingBottom');
+  let w=aw,h=aw*9/16;
+  if(h>ah){h=ah;w=ah*16/9}
+  cv.style.width=Math.max(1,Math.floor(w))+'px';cv.style.height=Math.max(1,Math.floor(h))+'px';
+}
+addEventListener('resize',fitCanvas);
+addEventListener('orientationchange',()=>{fitCanvas();setTimeout(fitCanvas,150);setTimeout(fitCanvas,500)});
+if(window.visualViewport)visualViewport.addEventListener('resize',fitCanvas);
+fitCanvas();
 const W=480,H=270;
 const FONT='"Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic","Meiryo","Noto Sans CJK JP","Noto Sans JP",sans-serif';
 
