@@ -539,7 +539,7 @@ function startPlay(){
   const c=dayConf(G.day);
   P={day:G.day,conf:c,t:c.dur,money:0,goal:calcGoal(G.day),slots:[null,null,null,null],leaving:[],st:{},hands:[],q:[],
      boy:{x:240,state:'idle',act:0},
-     spawn:.6,combo:0,maxCombo:0,served:0,lost:0,tips:0,floats:[],parts:[],msg:'',msgT:0,over:0,count:2.2,paused:false,burned:0,waste:0,closed:false,banner:0};
+     spawn:.6,combo:0,maxCombo:0,served:0,lost:0,tips:0,floats:[],parts:[],msg:'',msgT:0,over:0,count:2.2,paused:false,burned:0,waste:0,closed:false,banner:0,dish:0,mat:0,cooks:{}};
   STATIONS.forEach(s=>P.st[s.id]=[null,null,null]);
   scene='play';
 }
@@ -579,7 +579,7 @@ function doCook(it){
   const arr=P.st[it.st],cap=capOf();
   let k=-1;for(let j=0;j<cap;j++)if(!arr[j]){k=j;break}
   if(k<0){say('この調理場はいっぱい！');SFX.bad();return}
-  arr[k]={id:it.id,state:'cook',p:0,rt:0};SFX.cook();
+  arr[k]={id:it.id,state:'cook',p:0,rt:0};SFX.cook();P.cooks[it.st]=(P.cooks[it.st]||0)+1;
 }
 /* ---- 予約キュー: タップした順に主人公が動く ---- */
 const STX={};STATIONS.forEach((s,i)=>STX[s.id]=48+96*i);STX.trash=424; // ゴミ箱(x=456)の手前に立つ
@@ -646,13 +646,28 @@ function serveCust(c){
     P.combo++;P.maxCombo=Math.max(P.maxCombo,P.combo);
     const mult=1+Math.min(P.combo-1,8)*.05;
     const gain=Math.round((base+tip)*mult/10)*10;
-    P.money+=gain;P.tips+=tip;P.served++;
+    P.money+=gain;P.tips+=tip;P.served++;P.dish+=base;
+    c.need.forEach(nd=>{P.mat+=Math.round(iprice(IT[nd.id])*(MAT_RATE[IT[nd.id].st]||.3))});
     float(c.x,60,'+'+yen(gain),'#ffe066');
     if(tip>0)float(c.x,72,'チップ '+yen(tip),'#9affb0');
     if(P.combo>=2)float(c.x,84,'COMBO ×'+P.combo,'#ff9fd0');
     SFX.coin();sparkle(c.x,80,14,'#ffe066');
     dismiss(c,'happy');
   }
+}
+/* ===== 帳簿（雰囲気用。このブロックと SC.result を戻せば元の精算に戻る） ===== */
+const MAT_RATE={grill:.38,tandoor:.22,side:.30,pot:.30,drink:.20};
+function calcLedger(){
+  const c=P.cooks,gas=((c.grill||0)+(c.tandoor||0)+(c.pot||0))*8;
+  const elec=120+((c.drink||0)+(c.side||0))*3,water=90;
+  const gross=P.money+P.waste;
+  const L={
+    dish:P.dish,tips:P.tips,bonus:Math.max(0,gross-P.dish-P.tips),waste:P.waste,sales:P.money,
+    mat:P.mat,labor:200+60*P.day,util:gas+elec+water,gas,elec,water,rent:300+30*P.day,pack:P.served*15
+  };
+  L.exp=L.mat+L.labor+L.util+L.rent+L.pack;
+  L.net=L.sales-L.exp;
+  return L;
 }
 function loseDish(it,x,label){
   const c=wasteCost(it);P.money-=c;P.waste+=c;float(x,126,label+' -'+yen(c),'#ff7a6a');
@@ -903,29 +918,53 @@ function drawHUD(live,lhit){
 let RS=null;
 function showResult(){
   const win=P.money>=P.goal,stars=P.money>=P.goal*1.8?3:P.money>=P.goal*1.4?2:win?1:0;
-  RS={win,stars,money:P.money,goal:P.goal,served:P.served,lost:P.lost,combo:P.maxCombo,tips:P.tips,waste:P.waste,day:P.day,t:0};
-  if(win){G.cash+=P.money;G.day=P.day+1;if(P.day>=10)G.cleared=true;saveGame();SFX.fanfare()}else SFX.bad();
+  RS={win,stars,money:P.money,goal:P.goal,served:P.served,lost:P.lost,combo:P.maxCombo,tips:P.tips,waste:P.waste,day:P.day,t:0,L:calcLedger()};
+  if(win){G.cash=Math.max(0,G.cash+RS.L.net);G.day=P.day+1;if(P.day>=10)G.cleared=true;saveGame();SFX.fanfare()}else SFX.bad();
   scene='result';
 }
 SC.result={
   update(dt){RS.t+=dt},
   draw(){
+    const L=RS.L;
     drawBG('shop');R(0,0,W,H,'#000000aa');
-    box(90,20,300,232,'#fff6dc','#3b2418');box(94,24,292,224,'#fff6dc','#d9392b');
-    txt(RS.win?'DAY '+RS.day+' クリア！':'ざんねん…',240,32,20,RS.win?'#d9392b':'#555','center','#fff');
+    box(66,6,348,256,'#fbf3dc','#3b2418');box(69,9,342,250,'#fbf3dc','#b8a070');
+    txt('営業日計表  DAY '+RS.day,82,14,12,'#3b2418');
     for(let i=0;i<3;i++){
       const on=RS.win&&i<RS.stars&&RS.t>.4+i*.35;
-      txt('★',170+i*70,62+(on?Math.round(Math.sin(T*6+i)*2):0),30,on?'#ffb000':'#cfc6b0','center',on?'#8a4a00':'#aaa');
+      txt('★',350+i*18,12+(on?Math.round(Math.sin(T*6+i)*1):0),16,on?'#ffb000':'#cfc6b0','center',on?'#8a4a00':null);
     }
-    const rows=[['売上（ロス引き後）',yen(RS.money)],['目標',yen(RS.goal)],['チップ',yen(RS.tips)],['廃棄ロス','-'+yen(RS.waste)],['お客さん',RS.served+'人'],['帰っちゃった',RS.lost+'人'],['さいだいコンボ','×'+RS.combo]];
-    rows.forEach((r,i)=>{txt(r[0],120,98+i*14,9,'#5a3a2a');txt(r[1],360,98+i*14,9,'#3b2418','right')});
+    txt('目標 '+yen(RS.goal)+'  /  売上 '+yen(RS.money)+(RS.win?'  達成！':'  未達'),82,32,8,RS.win?'#2f8a3a':'#d9392b','left',null,true);
+    R(78,43,326,1,'#3b2418');
+    const rows=[
+      ['【売上】',''],['料理売上',yen(L.dish)],['チップ',yen(L.tips)],['コンボ特典',yen(L.bonus)],['廃棄ロス（捨てた・焦がした）',yen(-L.waste)],['売上計',yen(L.sales),1],
+      ['【経費】',''],['材料費',yen(-L.mat)],['人件費（ケンタのおこづかい）',yen(-L.labor)],['光熱費（ガス'+L.gas+'・電気'+L.elec+'・水道'+L.water+'）',yen(-L.util)],['家賃（日割り）',yen(-L.rent)],['包装・消耗品',yen(-L.pack)],['経費計',yen(-L.exp),1],
+      ['差引利益',yen(L.net),2]
+    ];
+    rows.forEach((r,i)=>{
+      const y=47+i*11.5;
+      if(r[2]!==2)R(78,y+10,326,1,'#e6dab8');
+      const head=r[0][0]==='【';
+      txt(r[0],82,y,8,head?'#8a4a25':'#5a3a2a','left',null,head||!!r[2]);
+      if(r[1]){
+        const neg=L.net<0&&r[2]===2;
+        txt(r[1],398,y,r[2]===2?10:8,r[2]===2?(neg?'#d9392b':'#2f6a3a'):'#3b2418','right',null,!!r[2]);
+      }
+      if(r[2]===2){R(78,y-2,326,1,'#3b2418');R(78,y+13,326,1,'#3b2418');R(78,y+15,326,1,'#3b2418')}
+    });
+    // 決算印
+    if(RS.t>.8){
+      ctx.save();ctx.translate(374,230);ctx.rotate(-.25);
+      ctx.strokeStyle=RS.win?'#d9392b':'#6a6a7a';ctx.lineWidth=1.5;ctx.strokeRect(-17,-17,34,34);
+      txt('決算',0,-12,12,RS.win?'#d9392b':'#6a6a7a','center');txt(RS.win?'済':'不足',0,2,12,RS.win?'#d9392b':'#6a6a7a','center');
+      ctx.restore();
+    }
     if(RS.win){
-      txt('所持金 '+yen(G.cash),240,203,10,'#2f8a3a','center');
-      button(150,224,180,22,'お店をととのえる',()=>toShop(false),{sz:10});
+      txt('所持金 '+yen(G.cash)+(L.net<0?'（赤字だけど所持金は0まで）':''),240,212,9,'#2f6a3a','center');
+      button(150,230,180,22,'お店をととのえる',()=>toShop(false),{sz:10});
     }else{
-      txt('目標まであと '+yen(RS.goal-RS.money),240,200,10,'#d9392b','center');
-      button(110,218,120,24,'もう一度',()=>startPlay(),{sz:10});
-      button(250,218,120,24,'タイトルへ',()=>{scene='title'},{sz:10,col:'#6a5a7a'});
+      txt('目標まであと '+yen(RS.goal-RS.money),240,212,9,'#d9392b','center');
+      button(100,230,120,22,'もう一度',()=>startPlay(),{sz:10});
+      button(260,230,120,22,'タイトルへ',()=>{scene='title'},{sz:10,col:'#6a5a7a'});
     }
     drawMute();
   }
