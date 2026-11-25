@@ -426,7 +426,7 @@ const KEY='kenta_restaurant_v2';
 function fixSave(g){g.up=Object.assign({cap:0,tray:0,walk:0,pat:0,spd:0,decor:0},g.up||{});g.itemUp=g.itemUp||{};g.stage=g.stage||1;return g}
 function loadSave(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.day)return fixSave(s)}catch(e){}return null}
 function saveGame(){try{localStorage.setItem(KEY,JSON.stringify(G))}catch(e){}}
-function newGame(){return{stage:1,day:1,cash:0,up:{cap:0,tray:0,walk:0,pat:0,spd:0,decor:0},itemUp:{},stageClear:false,cleared:false,intro:false}}
+function newGame(){return{stage:1,day:1,cash:50000,up:{cap:0,tray:0,walk:0,pat:0,spd:0,decor:0},itemUp:{},stageClear:false,cleared:false,intro:false}}
 let G=newGame();
 
 /* ---------- 入力 ---------- */
@@ -459,11 +459,14 @@ function drawMute(){
 /* ---------- ゲームデータ ---------- */
 const STAGES=[
  {id:1,name:'ナマステ食堂',sub:'インド料理',days:10,wall:'#f6e2ae',wall2:'#f3d99b',sign:'#b8662f',signA:'ナマステ',signB:'食堂',
-  heat:['グリル','タンドール','おなべ','ドリンク'],burn:[1,1,0,0]},
+  heat:['グリル','タンドール','おなべ','ドリンク'],burn:[1,1,0,0],
+  fin:{rent:150000,hours:2,elec:700,gas:700,water:200,misc:300,prize:40000}},
  {id:2,name:'サワディー亭',sub:'タイ・ベトナム料理',days:6,wall:'#e4f0c6',wall2:'#d8e8b4',sign:'#2f8a5a',signA:'サワディー',signB:'亭',
-  heat:['ウォック','蒸し器','スープ鍋','ドリンク'],burn:[1,1,0,0]},
+  heat:['ウォック','蒸し器','スープ鍋','ドリンク'],burn:[1,1,0,0],
+  fin:{rent:250000,hours:4,elec:1000,gas:1100,water:300,misc:500,prize:60000}},
  {id:3,name:'トラットリア ケンタ',sub:'イタリアン',days:6,wall:'#f6dccc',wall2:'#eecbb6',sign:'#a83a3a',signA:'トラットリア',signB:'ケンタ',
-  heat:['オーブン','パスタ鍋','ソース鍋','エスプレッソ'],burn:[1,0,0,0]},
+  heat:['オーブン','パスタ鍋','ソース鍋','エスプレッソ'],burn:[1,0,0,0],
+  fin:{rent:380000,hours:6,elec:1500,gas:1500,water:400,misc:700,prize:0}},
 ];
 const stg=()=>STAGES[G.stage-1];
 const HEAT=['h1','h2','h3','h4'];
@@ -696,6 +699,7 @@ const PROLOGUE=[
  {bg:'shop',who:'お父さん',text:'どうやら、風邪をこじらせたようだ…。\nしばらく、お店を開けられそうにない。',chars:[{k:'boy',x:120,o:{}},{k:'dad',x:340,o:{sick:true,talk:true}}]},
  {bg:'shop',who:'ケンタ',text:'ぼくが代わりにお店をやるよ！\nお父さんのケバブ、ずっと隣で見てきたから！',chars:[{k:'boy',x:120,o:{joy:true,talk:true}},{k:'dad',x:340,o:{sick:true}}]},
  {bg:'shop',who:'お父さん',text:'ケンタ…ありがとう。\nまずはケバブを焼くところから、頼んだぞ…。',chars:[{k:'boy',x:120,o:{}},{k:'dad',x:340,o:{sick:true,talk:true}}]},
+ {bg:'shop',who:'お父さん',text:'それと、店の通帳に貯金が5万円ある。\n家賃や光熱費は、ここから引かれていくぞ。\n赤字が続けば底をつく。機械を良くして、稼げるようにな。',chars:[{k:'boy',x:120,o:{}},{k:'dad',x:340,o:{sick:true,talk:true}}]},
  {bg:'night',who:'ケンタ',text:'よーし！ 目指すは、日本一のインド料理屋さんだ！',chars:[{k:'boy',x:240,o:{joy:true,talk:true}}]},
 ];
 // 各ステージのクリア後の話
@@ -724,11 +728,13 @@ const STAGE_PRO={
  2:[
   {bg:'shop',who:'',text:'日本一になってから半年。\n「ナマステ食堂」は、お父さんと仲間たちにまかせて、ケンタは旅に出た。',chars:[]},
   {bg:'night',who:'ケンタ',text:'屋台のガパオ、湯気の立つフォー、甘いタイティー…。\n世界には、まだ知らない味がいっぱいある！',chars:[{k:'boy',x:240,o:{joy:true,talk:true}}]},
+  {bg:'shop',who:'ケンタ',text:'日本一の賞金で、少し広いお店を借りられた。\n家賃は上がるけど、その分お客さんも増えるはず！',chars:[{k:'boy',x:150,o:{talk:true}}]},
   {bg:'shop',who:'ケンタ',text:'習った味をひっさげて、タイ・ベトナム料理のお店「サワディー亭」、オープンだ！',chars:[{k:'boy',x:150,o:{joy:true,talk:true}}]},
  ],
  3:[
   {bg:'shop',who:'',text:'アジア料理グランプリで優勝したケンタは、\nさらなる高みを目指して、イタリアに渡った。',chars:[]},
   {bg:'night',who:'ケンタ',text:'ピザ窯の熱、挽きたてのエスプレッソ、手打ちのパスタ…。\nどれも、奥が深い！',chars:[{k:'boy',x:240,o:{talk:true}}]},
+  {bg:'shop',who:'ケンタ',text:'家賃は月38万円。アジア料理グランプリの賞金で、なんとかなる…はず！\nここで黒字にできるかは、機械の強化しだいだ。',chars:[{k:'boy',x:150,o:{talk:true}}]},
   {bg:'shop',who:'ケンタ',text:'都会の一等地に、イタリアン「トラットリア ケンタ」をオープン！\n世界一への最終ステージだ！',chars:[{k:'boy',x:150,o:{joy:true,talk:true}}]},
  ],
 };
@@ -1246,33 +1252,31 @@ SC.title={
 SC.sprites={draw(){R(0,0,W,H,'#ccc');ITEMS.forEach((it,i)=>{spr(it.spr,6+(i%9)*52,6+Math.floor(i/9)*44,3)})}};
 
 /* ===== リザルト（帳簿つき） ===== */
-// 実際の飲食店の比率を参考にした帳簿。材料費約32%・人件費約28%・家賃約16%・光熱費約7%。
-// 人件費・家賃・光熱費は「その日の標準的な売上」をもとにした固定費なので、売上が少ない日は赤字になる。
+// 帳簿。家賃・人件費・光熱費は「店ごとの実額」の固定費で、売上が少ない日は赤字になり、貯金から引かれる。
+// 貯金が尽きると借金になる（借金中は機械のアップグレードができない）。
 function calcLedger(){
-  const E=P.goal*1.15,c=P.cooks; // その日の標準的な売上（固定費の基準）
-  const wage=1100,hours=Math.round(E*.28/wage*10)/10;
-  const labor=Math.round(hours*wage/10)*10;
-  const rent=Math.round(E*.16/10)*10;
-  const elec=Math.round(E*.03/10)*10;
-  const gas=Math.round((E*.03+((c.h1||0)+(c.h2||0)+(c.h3||0))*6)/10)*10;
-  const water=Math.round(E*.01/10)*10;
-  const misc=Math.round((P.served*18+E*.02)/10)*10;
+  const f=stg().fin,c=P.cooks,wage=1100;
+  const labor=Math.round(f.hours*wage/10)*10,rent=Math.round(f.rent/30/10)*10;
+  const gas=f.gas+((c.h1||0)+(c.h2||0)+(c.h3||0))*6;
+  const misc=f.misc+P.served*18;
   const gross=P.money+P.waste;
   const L={
     dish:P.dish,tips:P.tips,bonus:Math.max(0,gross-P.dish-P.tips),waste:P.waste,sales:P.money,
-    mat:P.mat,labor,hours,wage,rent,elec,gas,water,util:elec+gas+water,misc
+    mat:P.mat,labor,hours:f.hours,wage,rent,monthly:f.rent,elec:f.elec,gas,water:f.water,util:f.elec+gas+f.water,misc
   };
   L.exp=L.mat+L.labor+L.rent+L.util+L.misc;
   L.net=L.sales-L.exp;
   return L;
 }
+// 1日あたりの固定費（家賃・人件費・光熱費・雑費）
+function fixedDaily(){const f=stg().fin;return Math.round(f.rent/30+f.hours*1100+f.elec+f.gas+f.water+f.misc)}
 let RS=null;
 function showResult(){
   const win=P.money>=P.goal,stars=P.money>=P.goal*1.8?3:P.money>=P.goal*1.4?2:win?1:0;
   RS={win,stars,money:P.money,goal:P.goal,served:P.served,lost:P.lost,combo:P.maxCombo,day:P.day,t:0,L:calcLedger(),stageClear:false,stage:G.stage};
   if(win){
-    G.cash=Math.max(0,G.cash+RS.L.net);G.day=P.day+1;
-    if(P.day>=stg().days){G.stageClear=true;RS.stageClear=true}
+    G.cash=G.cash+RS.L.net;G.day=P.day+1;
+    if(P.day>=stg().days){G.stageClear=true;RS.stageClear=true;RS.prize=stg().fin.prize;G.cash+=RS.prize}
     saveGame();SFX.fanfare();
   }else SFX.bad();
   scene='result';
@@ -1293,7 +1297,7 @@ SC.result={
     const rows=[
       ['【売上】',''],['料理売上',yen(L.dish)],['チップ',yen(L.tips)],['コンボ特典',yen(L.bonus)],['廃棄ロス（捨てた・焦がした）',yen(-L.waste)],['売上計',yen(L.sales),1],
       ['【経費】',''],['材料費（原価）',yen(-L.mat)],['人件費（時給¥'+L.wage.toLocaleString('en-US')+'×'+L.hours+'時間）',yen(-L.labor)],
-      ['家賃（日割り）',yen(-L.rent)],['光熱費（電気'+L.elec+'・ガス'+L.gas+'・水道'+L.water+'）',yen(-L.util)],['包装・広告・雑費',yen(-L.misc)],['経費計',yen(-L.exp),1],
+      ['家賃（月¥'+L.monthly.toLocaleString('en-US')+'÷30日）',yen(-L.rent)],['光熱費（電気'+L.elec+'・ガス'+L.gas+'・水道'+L.water+'）',yen(-L.util)],['包装・広告・雑費',yen(-L.misc)],['経費計',yen(-L.exp),1],
       ['差引利益',yen(L.net),2]
     ];
     rows.forEach((r,i)=>{
@@ -1314,7 +1318,7 @@ SC.result={
       ctx.restore();
     }
     if(RS.win){
-      txt((RS.stageClear?'ステージクリア！  ':'')+'所持金 '+yen(G.cash)+(L.net<0?'（赤字だけど所持金は0まで）':''),240,212,9,RS.stageClear?'#d9392b':'#2f6a3a','center');
+      txt((RS.stageClear?'ステージクリア！'+(RS.prize?' 優勝賞金 +'+yen(RS.prize):'')+'   ':'')+(G.cash<0?'借金 '+yen(-G.cash):'貯金 '+yen(G.cash)),240,212,9,G.cash<0?'#d9392b':RS.stageClear?'#d9392b':'#2f6a3a','center');
       button(150,230,180,22,'お店をととのえる',()=>toShop(false),{sz:10});
     }else{
       txt('目標まであと '+yen(RS.goal-RS.money),240,212,9,'#d9392b','center');
@@ -1344,9 +1348,11 @@ SC.shop={
   draw(){
     R(0,0,W,H,'#3a2438');for(let x=0;x<W;x+=24)R(x,0,12,H,'#40283e');
     txt('お店をととのえる  〜 '+stg().name+' 〜',20,6,13,'#ffe066','left','#3b2418');
-    txt('所持金 '+yen(G.cash),460,8,12,'#fff','right','#3b2418');
+    txt((G.cash<0?'借金 ':'貯金 ')+yen(Math.abs(G.cash)),460,8,12,G.cash<0?'#ff8a7a':'#fff','right','#3b2418');
     button(14,26,92,14,'お店',()=>{shopTab=0},{sz:8,col:shopTab===0?'#e8742a':'#5a3a6a'});
     button(110,26,92,14,'メニュー',()=>{shopTab=1},{sz:8,col:shopTab===1?'#e8742a':'#5a3a6a'});
+    const fd=fixedDaily();
+    txt(G.cash<0?'借金中は強化できません。稼いで返そう！':'毎日の固定費 約'+yen(fd)+'（家賃など） → 貯金で約'+Math.floor(G.cash/fd)+'日分',212,30,8,G.cash<0?'#ff8a7a':'#d8c8e0','left',null,false);
     if(shopTab===0){
       UPS.forEach((u,i)=>{
         const y=46+i*31,lv=G.up[u.id]||0,max=u.cost.length;
