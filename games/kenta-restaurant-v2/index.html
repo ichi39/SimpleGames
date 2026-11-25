@@ -460,13 +460,13 @@ function drawMute(){
 const STAGES=[
  {id:1,name:'ナマステ食堂',sub:'インド料理',days:10,wall:'#f6e2ae',wall2:'#f3d99b',sign:'#b8662f',signA:'ナマステ',signB:'食堂',
   heat:['グリル','タンドール','おなべ','ドリンク'],burn:[1,1,0,0],
-  fin:{rent:150000,hours:2,elec:700,gas:700,water:200,misc:300,prize:40000}},
+  fin:{rent:180000,hours:2,elec:700,gas:800,water:250,misc:400,prize:40000}},
  {id:2,name:'サワディー亭',sub:'タイ・ベトナム料理',days:6,wall:'#e4f0c6',wall2:'#d8e8b4',sign:'#2f8a5a',signA:'サワディー',signB:'亭',
   heat:['ウォック','蒸し器','スープ鍋','ドリンク'],burn:[1,1,0,0],
-  fin:{rent:250000,hours:4,elec:1000,gas:1100,water:300,misc:500,prize:60000}},
+  fin:{rent:280000,hours:4,elec:1200,gas:1300,water:350,misc:600,prize:60000}},
  {id:3,name:'トラットリア ケンタ',sub:'イタリアン',days:6,wall:'#f6dccc',wall2:'#eecbb6',sign:'#a83a3a',signA:'トラットリア',signB:'ケンタ',
   heat:['オーブン','パスタ鍋','ソース鍋','エスプレッソ'],burn:[1,0,0,0],
-  fin:{rent:380000,hours:6,elec:1500,gas:1500,water:400,misc:700,prize:0}},
+  fin:{rent:420000,hours:6,elec:1800,gas:1800,water:500,misc:900,prize:0}},
 ];
 const stg=()=>STAGES[G.stage-1];
 const HEAT=['h1','h2','h3','h4'];
@@ -482,11 +482,11 @@ function calcGoal(d){
 }
 // ステージ1の10日間で買えるのは全体の1〜2割程度になるよう、費用は高めに設定
 const UPS=[
- {id:'tray', name:'お盆',             desc:'持てる料理の数 +1（最大4つ）',   cost:[2500,5000]},
- {id:'walk', name:'ダッシュ特訓',     desc:'歩くスピード +20%',              cost:[1500,3000,5000]},
- {id:'pat',  name:'おもてなし',       desc:'お客さんの待ち時間 +15%',        cost:[1500,3000,5000]},
- {id:'spd',  name:'スパイス修行',     desc:'全メニューの作業時間 -12%',      cost:[2000,4000,6500]},
- {id:'decor',name:'お店のリフォーム', desc:'お店がきれいに & チップ +10%（店ごとにリセット）', cost:[2500,5000,9000,15000]},
+ {id:'tray', name:'お盆',             desc:'持てる料理の数 +1（最大4つ）',   cost:[2500,5000],need:[2,5]},
+ {id:'walk', name:'ダッシュ特訓',     desc:'歩くスピード +20%',              cost:[1500,3000,5000],need:[3,6,9]},
+ {id:'pat',  name:'おもてなし',       desc:'お客さんの待ち時間 +15%',        cost:[1500,3000,5000],need:[3,6,9]},
+ {id:'spd',  name:'スパイス修行',     desc:'全メニューの作業時間 -12%',      cost:[2000,4000,6500],need:[4,7,10]},
+ {id:'decor',name:'お店のリフォーム', desc:'お店がきれいに & チップ +10%（店ごとにリセット）', cost:[2500,5000,9000,15000],need:[2,4,6,8]},
 ];
 const QMAX=8;
 const handsMax=()=>2+(G.up.tray||0);
@@ -734,7 +734,7 @@ const STAGE_PRO={
  3:[
   {bg:'shop',who:'',text:'アジア料理グランプリで優勝したケンタは、\nさらなる高みを目指して、イタリアに渡った。',chars:[]},
   {bg:'night',who:'ケンタ',text:'ピザ窯の熱、挽きたてのエスプレッソ、手打ちのパスタ…。\nどれも、奥が深い！',chars:[{k:'boy',x:240,o:{talk:true}}]},
-  {bg:'shop',who:'ケンタ',text:'家賃は月38万円。アジア料理グランプリの賞金で、なんとかなる…はず！\nここで黒字にできるかは、機械の強化しだいだ。',chars:[{k:'boy',x:150,o:{talk:true}}]},
+  {bg:'shop',who:'ケンタ',text:'家賃は月42万円。アジア料理グランプリの賞金で、なんとかなる…はず！\nここで黒字にできるかは、機械の強化しだいだ。',chars:[{k:'boy',x:150,o:{talk:true}}]},
   {bg:'shop',who:'ケンタ',text:'都会の一等地に、イタリアン「トラットリア ケンタ」をオープン！\n世界一への最終ステージだ！',chars:[{k:'boy',x:150,o:{joy:true,talk:true}}]},
  ],
 };
@@ -1332,7 +1332,10 @@ SC.result={
 /* ===== ショップ ===== */
 function toShop(){scene='shop'}
 let shopTab=0,shopSel=null;
-const upgradable=()=>ITEMS.filter(it=>it.stage===G.stage&&it.day<=Math.max(1,Math.min(G.day-1,stg().days)));
+// そのステージで営業を終えた日数。強化はこれが増えるほど少しずつ解放される
+const daysDone=()=>Math.max(0,Math.min(G.day-1,stg().days));
+const upgradable=()=>ITEMS.filter(it=>it.stage===G.stage&&it.day<=daysDone());
+const ITEM_UP_NEED=[0,2,4]; // 料理が解禁されてから、Lv1/Lv2/Lv3 が買えるまでの日数
 function goNext(){
   if(G.stageClear){
     const last=G.stage>=STAGES.length;
@@ -1360,7 +1363,7 @@ SC.shop={
         txt(u.name,24,y+3,9,'#fff');txt(u.desc,24,y+16,8,'#d8c8e0','left',null,false);
         for(let k=0;k<max;k++)R(330+k*12,y+10,9,9,k<lv?'#ffd84a':'#2a1a2e');
         if(lv>=max)button(386,y+4,70,21,'MAX',()=>{},{disabled:true,sz:9});
-        else{const c=u.cost[lv];button(386,y+4,70,21,yen(c),()=>{G.cash-=c;G.up[u.id]=lv+1;saveGame();SFX.coin()},{disabled:G.cash<c,sz:9,col:'#3a8a5a'})}
+        else{const c=u.cost[lv],lock=daysDone()<u.need[lv];button(386,y+4,70,21,lock?'あと'+(u.need[lv]-daysDone())+'日':yen(c),()=>{G.cash-=c;G.up[u.id]=lv+1;saveGame();SFX.coin()},{disabled:lock||G.cash<c,sz:9,col:'#3a8a5a'})}
       });
     }else{
       const list=upgradable();
@@ -1372,7 +1375,7 @@ SC.shop={
         for(let k=0;k<3;k++)R(bx+5+k*8,by+30,6,5,k<lv?'#ffd84a':'#2a1a2e');
         hit(bx,by,32,38,()=>{shopSel=it.id;SFX.click()});
       });
-      txt('料理を選んで\n機械をアップグレード',14,170,8,'#d8c8e0','left',null,false);
+      txt(list.length?'料理を選んで\n機械をアップグレード':'営業を始めると\n強化できる料理が増えるよ',14,170,8,'#d8c8e0','left',null,false);
       if(shopSel){
         const it=IT[shopSel],lv=ilv(it.id),kind=upKind(it);
         box(156,44,310,194,'#4a3652','#1e1214');
@@ -1388,7 +1391,7 @@ SC.shop={
           txt(effText(e),166,y+37,7,'#ffe066','left',null,true);
           const c=itemUpCost(it,i);
           if(done)button(398,y+14,58,22,'導入済み',()=>{},{disabled:true,sz:7,col:'#3a8a5a'});
-          else if(next)button(398,y+14,58,22,yen(c),()=>{G.cash-=c;G.itemUp[it.id]=lv+1;saveGame();SFX.coin()},{disabled:G.cash<c,sz:8,col:'#3a8a5a'});
+          else if(next){const wait=ITEM_UP_NEED[i]-(daysDone()-it.day);const lock=wait>0;button(398,y+14,58,22,lock?'あと'+wait+'日':yen(c),()=>{G.cash-=c;G.itemUp[it.id]=lv+1;saveGame();SFX.coin()},{disabled:lock||G.cash<c,sz:8,col:'#3a8a5a'})}
           else button(398,y+14,58,22,'まだ',()=>{},{disabled:true,sz:8});
         });
       }
