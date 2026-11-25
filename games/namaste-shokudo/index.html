@@ -187,6 +187,13 @@ const CURRY=[
 "....kkkkkkkk....",
 "................",
 "................"];
+// バターチキン: 鮮やかなトマトオレンジに、クリームの渦とバターのかたまり
+const BUTTERCURRY=put(CURRY,[[10,5,'W'],[11,5,'W'],[12,6,'W'],[4,6,'W'],[5,7,'W'],[8,6,'y'],[9,6,'y'],[8,7,'y'],[9,7,'y'],[11,4,'g']]);
+// キーマ: 茶色っぽい挽き肉のつぶつぶ、中央にゆで卵、緑の縁の器
+const KEEMACURRY=put(CURRY.map((r,y)=>y>=4&&y<=7?r.replace(/W/g,'C'):r),
+  [[3,5,'b'],[4,6,'b'],[12,5,'b'],[11,6,'b'],[3,7,'b'],[12,7,'b'],[13,4,'b'],[2,6,'g'],[12,6,'g'],[4,7,'g'],[11,4,'g'],
+   [6,4,'w'],[7,4,'w'],[8,4,'w'],[9,4,'w'],[5,5,'w'],[6,5,'w'],[9,5,'w'],[10,5,'w'],[5,6,'w'],[6,6,'w'],[9,6,'w'],[10,6,'w'],[6,7,'w'],[7,7,'w'],[8,7,'w'],[9,7,'w'],
+   [7,5,'Y'],[8,5,'Y'],[7,6,'Y'],[8,6,'Y']]);
 const TANDOORI=[
 "................",
 "....kkkkkk......",
@@ -232,12 +239,12 @@ const ITEMS=[
  {id:'salad',  name:'グリーンサラダ',    st:'side',   t:2,  price:650, day:2, rows:SALAD},
  {id:'lassi',  name:'ラッシー',          st:'drink',  t:2,  price:350, day:3, rows:LASSI,pal:DRINKS.lassi},
  {id:'naan',   name:'プレーンナン',      st:'tandoor',t:5,  price:350, day:4, rows:NAAN},
- {id:'curry',  name:'バターチキンカレー',st:'pot',    t:3.5,price:1100,day:5, rows:CURRY,pal:{c:'#e85a1e',C:'#f27a2c'}},
+ {id:'curry',  name:'バターチキンカレー',st:'pot',    t:3.5,price:1100,day:5, rows:BUTTERCURRY,pal:{c:'#e8431a',C:'#f5662a',W:'#fff7e8',y:'#ffe27a'}},
  {id:'mango',  name:'マンゴーラッシー',  st:'drink',  t:2,  price:450, day:6, rows:MANGO,pal:DRINKS.mango},
  {id:'tandoori',name:'タンドリーチキン', st:'grill',  t:7,  price:840, day:7, rows:TANDOORI},
  {id:'oj',     name:'オレンジジュース',  st:'drink',  t:2,  price:400, day:8, rows:OJ,pal:DRINKS.oj},
  {id:'cheese', name:'チーズナン',        st:'tandoor',t:6,  price:720, day:9, rows:CHEESENAAN},
- {id:'keema',  name:'キーマカレー',      st:'pot',    t:3.5,price:990, day:10,rows:CURRY,pal:{c:'#b8501a',C:'#d06a22',W:'#fff7d0'}},
+ {id:'keema',  name:'キーマカレー',      st:'pot',    t:3.5,price:990, day:10,rows:KEEMACURRY,pal:{c:'#a24a1a',C:'#c0662a',b:'#5a2a10',B:'#4a2210',r:'#2f8a5a',Y:'#ffb000'}},
  {id:'don',    name:'チキンケバブ丼',    st:'side',   t:4,  price:1150,day:10,rows:DON,pal:{l:'#c4623a',y:'#e08a4a',o:'#a8452a',B:'#7a2a1a',w:'#2a2a33',W:'#46465a',h:'#8a8a9a'}},
 ];
 const IT={};
