@@ -880,6 +880,38 @@ function freeSlot(st,id){return P.st[st].findIndex(s=>s.item===id&&!s.dish)}
 function heldNeed(st){
   return P.hands.findIndex(d=>{const s=stepOf(d);return s&&(st==='top'?s.k==='top':(s.k==='cook'&&s.st===st))});
 }
+function heldNeeds(st){
+  const r=[];
+  P.hands.forEach((d,i)=>{const s=stepOf(d);if(s&&(st==='top'?s.k==='top':(s.k==='cook'&&s.st===st)))r.push(i)});
+  return r;
+}
+function heatPlan(st){
+  const slots=P.st[st].map((s,k)=>({s,k})).filter(o=>o.s.dish);
+  const doneOf=list=>list.find(o=>o.s.state==='ready'||o.s.state==='burnt');
+  const canTake=o=>o.s.state==='burnt'||P.hands.length<handsMax();
+  const needs=heldNeeds(st);
+  if(needs.length){
+    for(const i of needs){const k=freeSlot(st,P.hands[i].id);if(k>=0)return{kind:'place',i,k}}
+    // 置きたい料理の台が全部使用中。できあがりを待って取り出し、その台に置く
+    const busy=slots.filter(o=>o.s.item===P.hands[needs[0]].id);
+    const done=doneOf(busy);
+    if(done)return canTake(done)?{kind:'collect',k:done.k,then:true}:{kind:'blocked'};
+    return busy.length?{kind:'wait'}:{kind:'none'};
+  }
+  const done=doneOf(slots);
+  if(done)return canTake(done)?{kind:'collect',k:done.k}:{kind:'blocked'};
+  return slots.length?{kind:'wait'}:{kind:'none'};
+}
+function placeDish(st,i,k){
+  const d=P.hands[i];P.hands.splice(i,1);
+  Object.assign(P.st[st][k],{dish:d,state:'cook',p:0,rt:0});
+  SFX.cook();P.cooks[st]=(P.cooks[st]||0)+1;
+}
+function collectSlot(st,k){
+  const sl=P.st[st][k];
+  if(sl.state==='burnt'){sl.dish=null;sl.state='idle';say('こげちゃった…すてました');SFX.bad();return}
+  sl.dish.step++;P.hands.push(sl.dish);sl.dish=null;sl.state='idle';SFX.take();
+}
 function wasteFor(d){return Math.round(wasteCost(IT[d.id])*(.35+.65*Math.min(1,d.step/stepsOf(IT[d.id]).length))/10)*10}
 function loseDish(it,x,label){
   const c=wasteCost(it);P.money-=c;P.waste+=c;float(x,126,label+' -'+yen(c),'#ff7a6a');
@@ -940,10 +972,23 @@ function updateBoy(dt){
   }
   b.x=tx;
   if(a.t==='take'&&P.st[a.st][a.k].state==='cook'){b.state='wait';b.pg=0;return} // できあがるまで待つ
+  let plan=null;
+  if(a.t==='step'&&a.st!=='top'){
+    plan=heatPlan(a.st);
+    if(plan.kind==='wait'){b.state='wait';b.act=0;b.pg=0;return} // 台が空く・できあがるまで、その場で待つ
+    if(plan.kind==='none'||plan.kind==='blocked'){
+      q.shift();b.act=0;b.pg=0;
+      say(plan.kind==='blocked'?'手がいっぱい！ 先に届けるか、ゴミ箱へ':'ここでできる作業がないよ');SFX.bad();return;
+    }
+  }
   b.state='act';b.act+=dt;
   const dur=actDur(a);b.pg=Math.min(1,b.act/dur);
   if(b.act<dur)return;
-  b.act=0;b.pg=0;q.shift();perform(a);
+  b.act=0;b.pg=0;
+  if(plan){
+    if(plan.kind==='place'){placeDish(a.st,plan.i,plan.k);q.shift()}
+    else{collectSlot(a.st,plan.k);if(!plan.then)q.shift()} // 置くために取り出したときは、予約は続ける
+  }else{q.shift();perform(a)}
 }
 function serveCust(c){
   if(!c||c.state!=='wait')return;
@@ -1200,7 +1245,7 @@ SC.play={
         badge(x0+22,155,bd['p:top']);
       }else{
         lhit(x0,150,l.w,118,()=>enqueue({t:'step',st:l.id}));
-        if(inside(x0,150,l.w,118)&&live)tip=stName(l.id)+'（持っている料理を入れる）';
+        if(inside(x0,150,l.w,118)&&live)tip=stName(l.id)+'（入れる／できあがりを待って取り出す）';
         drawAppliance(l.id,x0,l.w);
         const slots=P.st[l.id],n=slots.length,cols=n<=2?Math.max(1,n):3,size=n<=2?28:20,gap=n<=2?4:3;
         const total=Math.min(n,cols)*size+(Math.min(n,cols)-1)*gap,sx=Math.round(x0+(l.w-total)/2);
