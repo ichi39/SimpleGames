@@ -308,7 +308,7 @@ function startBgm(){
 const KEY='namaste_shokudo_v1';
 function loadSave(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.day)return s}catch(e){}return null}
 function saveGame(){try{localStorage.setItem(KEY,JSON.stringify(G))}catch(e){}}
-function newGame(){return{day:1,cash:0,up:{cap:0,tray:0,pat:0,spd:0,decor:0},cleared:false,intro:false}}
+function newGame(){return{day:1,cash:0,up:{cap:0,walk:0,pat:0,spd:0,decor:0},cleared:false,intro:false}}
 let G=newGame();
 
 /* ---------- 入力 ---------- */
@@ -348,12 +348,13 @@ function calcGoal(d){
 }
 const UPS=[
  {id:'cap',  name:'キッチン拡張',     desc:'各調理場の同時調理数 +1',  cost:[6000]},
- {id:'tray', name:'大きなトレイ',     desc:'トレイの容量 4 → 6',        cost:[4000]},
+ {id:'walk', name:'ダッシュ特訓',     desc:'歩くスピード +20%',         cost:[3500,7000,12000]},
  {id:'pat',  name:'おもてなし',       desc:'お客さんの待ち時間 +15%',   cost:[3000,6500,11000]},
  {id:'spd',  name:'スパイス修行',     desc:'調理時間 -12%',             cost:[4000,8000,13000]},
  {id:'decor',name:'お店のリフォーム', desc:'お店がきれいに & チップ +10%',cost:[5000,10000,18000,30000]},
 ];
-const capOf=()=>2+G.up.cap, trayOf=()=>4+2*G.up.tray;
+const capOf=()=>2+G.up.cap;
+const HANDS=2,QMAX=6;
 const SLOT_X=[104,196,288,380];
 
 /* ---------- シーン管理 ---------- */
@@ -408,8 +409,9 @@ function dayPages(d){
   const unlock=(text)=>P.push({bg:'shop',unlock:un,who:'',text,chars:[]});
   switch(d){
    case 1:
-    say('ケンタ','まずはお父さん直伝のケバブ！\nお客さんのふきだしを見て、ボタンで調理スタート！');
-    say('ケンタ','できあがったらクリックでトレイへ。\nそのあと、お客さんをクリックして渡そう！');break;
+    say('ケンタ','まずはお父さん直伝のケバブ！\nお客さんのふきだしを見て、料理ボタンをタップしよう！');
+    say('ケンタ','ぼくが調理場まで歩いていくよ。\nタップした順に動くから、先に何個でも予約できるんだ！');
+    say('ケンタ','できた料理は、両手で2つまで持てるよ。\nできあがりをタップで取りに行って、お客さんをタップで届けよう！');break;
    case 2:
     P.push({bg:'shop',who:'',text:'チキンケバブの評判が口コミで広がり、\n新しいお客さんがどんどんやって来る！',chars:[]});
     unlock('ヘルシーな「グリーンサラダ」が解禁！');
@@ -526,8 +528,9 @@ SC.sprites={draw(){R(0,0,W,H,'#ccc');ITEMS.forEach((it,i)=>{spr(it.spr,10+(i%6)*
 let P=null;
 function startPlay(){
   const c=dayConf(G.day);
-  P={day:G.day,conf:c,t:c.dur,money:0,goal:calcGoal(G.day),slots:[null,null,null,null],leaving:[],st:{},tray:[],
-     spawn:.6,combo:0,maxCombo:0,served:0,lost:0,tips:0,floats:[],parts:[],msg:'',msgT:0,over:0,count:2.2,paused:false,hop:0,burned:0};
+  P={day:G.day,conf:c,t:c.dur,money:0,goal:calcGoal(G.day),slots:[null,null,null,null],leaving:[],st:{},hands:[],q:[],
+     boy:{x:240,state:'idle',act:0},
+     spawn:.6,combo:0,maxCombo:0,served:0,lost:0,tips:0,floats:[],parts:[],msg:'',msgT:0,over:0,count:2.2,paused:false,burned:0};
   STATIONS.forEach(s=>P.st[s.id]=[null,null,null]);
   scene='play';
 }
@@ -545,34 +548,74 @@ function pickOrder(d){
   return out;
 }
 function spawnCust(){
-  const free=[];P.slots.forEach((c,i)=>{if(!c)free.push(i)});
-  if(!free.length)return false;
-  const i=pick(free),need=pickOrder(P.day);
+  const i=P.slots.findIndex(c=>!c);
+  if(i<0)return false;
+  const need=pickOrder(P.day);
   const pat=(26+need.length*5)*(1+.15*G.up.pat);
   P.slots[i]={spr:pick(CUSTS),x:W+40,tx:SLOT_X[i],need:need.map(id=>({id,done:false})),pat,max:pat,state:'enter',bob:rnd(0,6),shake:0};
   return true;
 }
+// 客が帰ったら、残りの客は先頭から詰めて並び直す
+function compact(){
+  const a=P.slots.filter(Boolean);
+  P.slots=a.concat(Array(4-a.length).fill(null));
+  a.forEach((c,i)=>c.tx=SLOT_X[i]);
+}
+function dismiss(c,mood){
+  const i=P.slots.indexOf(c);if(i<0)return;
+  c.state='leave';c.mood=mood;c.lt=.9;P.leaving.push(c);P.slots[i]=null;compact();
+}
 function cookTime(it){return it.t*(1-.12*G.up.spd)}
-function startCook(it){
+function doCook(it){
   const arr=P.st[it.st],cap=capOf();
-  let i=-1;for(let k=0;k<cap;k++)if(!arr[k]){i=k;break}
-  if(i<0){say('この調理場はいっぱい！');SFX.bad();return}
-  arr[i]={id:it.id,state:'cook',p:0,rt:0};SFX.cook();P.hop=.25;
+  let k=-1;for(let j=0;j<cap;j++)if(!arr[j]){k=j;break}
+  if(k<0){say('この調理場はいっぱい！');SFX.bad();return}
+  arr[k]={id:it.id,state:'cook',p:0,rt:0};SFX.cook();
 }
-function takeSlot(stId,i,x,y){
-  const s=P.st[stId][i];if(!s)return;
-  if(s.state==='cook')return;
-  if(s.state==='burnt'){P.st[stId][i]=null;say('こげちゃった…すてました');SFX.bad();return}
-  if(P.tray.length>=trayOf()){say('トレイがいっぱい！');SFX.bad();return}
-  P.tray.push(s.id);P.st[stId][i]=null;SFX.take();
+/* ---- 予約キュー: タップした順に主人公が動く ---- */
+const STX={};STATIONS.forEach((s,i)=>STX[s.id]=48+96*i);
+function enqueue(a){
+  if(P.q.length>=QMAX){say('よやくがいっぱい！');SFX.bad();return}
+  if(a.t==='take'&&P.q.some(b=>b.t==='take'&&b.st===a.st&&b.k===a.k))return;
+  P.q.push(a);SFX.click();
 }
-function serve(ci){
-  const c=P.slots[ci];if(!c||c.state!=='wait')return;
+function actX(a){return a.t==='serve'?a.c.x:STX[a.t==='cook'?IT[a.item].st:a.st]}
+function actValid(a){
+  if(a.t==='take')return !!P.st[a.st][a.k];
+  if(a.t==='serve')return a.c.state==='wait'&&P.slots.includes(a.c);
+  return true;
+}
+function perform(a){
+  if(a.t==='cook')doCook(IT[a.item]);
+  else if(a.t==='take'){
+    const arr=P.st[a.st],s=arr[a.k];if(!s)return;
+    if(s.state==='burnt'){arr[a.k]=null;say('こげちゃった…すてました');SFX.bad();return}
+    if(P.hands.length>=HANDS){say('りょう手がふさがってる！');SFX.bad();return}
+    P.hands.push(s.id);arr[a.k]=null;SFX.take();
+  }else if(a.t==='serve')serveCust(a.c);
+}
+function updateBoy(dt){
+  const b=P.boy,q=P.q;
+  while(q.length&&!actValid(q[0]))q.shift();
+  if(!q.length){b.state='idle';b.act=0;return}
+  const a=q[0],tx=actX(a),dx=tx-b.x;
+  if(Math.abs(dx)>1){
+    const sp=150*(1+.2*(G.up.walk||0));
+    b.x+=Math.sign(dx)*Math.min(Math.abs(dx),sp*dt);b.state='walk';b.act=0;return;
+  }
+  b.x=tx;
+  if(a.t==='take'&&P.st[a.st][a.k].state==='cook'){b.state='wait';return} // できあがるまで待つ
+  b.state='act';b.act+=dt;
+  if(b.act<.22)return;
+  b.act=0;q.shift();perform(a);
+}
+function serveCust(c){
+  if(!c||c.state!=='wait')return;
   let n=0;
   c.need.forEach(nd=>{
     if(nd.done)return;
-    const k=P.tray.indexOf(nd.id);
-    if(k>=0){P.tray.splice(k,1);nd.done=true;n++;sparkle(c.x,80,6)}
+    const k=P.hands.indexOf(nd.id);
+    if(k>=0){P.hands.splice(k,1);nd.done=true;n++;sparkle(c.x,80,6)}
   });
   if(!n){c.shake=.3;say('ほしいのは ふきだしの料理だよ！');SFX.bad();return}
   SFX.serve();
@@ -588,14 +631,14 @@ function serve(ci){
     if(tip>0)float(c.x,72,'チップ '+yen(tip),'#9affb0');
     if(P.combo>=2)float(c.x,84,'COMBO ×'+P.combo,'#ff9fd0');
     SFX.coin();sparkle(c.x,80,14,'#ffe066');
-    c.state='leave';c.mood='happy';c.lt=.9;P.leaving.push(c);P.slots[ci]=null;
+    dismiss(c,'happy');
   }
 }
 function updatePlay(dt){
   if(P.paused)return;
   P.floats.forEach(f=>f.t+=dt);P.floats=P.floats.filter(f=>f.t<1.2);
   P.parts.forEach(p=>{p.t+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=160*dt});P.parts=P.parts.filter(p=>p.t<p.life);
-  if(P.msgT>0)P.msgT-=dt;if(P.hop>0)P.hop-=dt;
+  if(P.msgT>0)P.msgT-=dt;
   P.leaving.forEach(c=>c.lt-=dt);P.leaving=P.leaving.filter(c=>c.lt>0);
   if(P.count>0){P.count-=dt;return}
   if(P.t<=0){P.over+=dt;if(P.over>2)showResult();return}
@@ -606,16 +649,21 @@ function updatePlay(dt){
     if(s.state==='cook'){s.p+=dt;if(s.p>=cookTime(it)){s.state='ready';s.rt=0;SFX.ready()}}
     else if(s.state==='ready'&&it.burn){s.rt+=dt;if(s.rt>8){s.state='burnt';SFX.burn();P.burned++}}
   });
+  updateBoy(dt);
   // お客さん
   P.spawn-=dt;
   if(P.spawn<=0){if(spawnCust())P.spawn=P.conf.interval*rnd(.7,1.3);else P.spawn=.8}
-  P.slots.forEach((c,i)=>{
+  P.slots.slice().forEach(c=>{
     if(!c)return;
     if(c.shake>0)c.shake-=dt;
-    if(c.state==='enter'){c.x+=Math.max(-170*dt,(c.tx-c.x));if(c.x>c.tx)c.x=Math.max(c.tx,c.x-170*dt);if(Math.abs(c.x-c.tx)<1){c.x=c.tx;c.state='wait'}}
-    else if(c.state==='wait'){
+    if(c.state==='enter'||c.state==='wait'){
+      const dx=c.tx-c.x;
+      if(Math.abs(dx)>.5)c.x+=Math.sign(dx)*Math.min(Math.abs(dx),170*dt);
+      else{c.x=c.tx;if(c.state==='enter')c.state='wait'}
+    }
+    if(c.state==='wait'){
       c.pat-=dt;
-      if(c.pat<=0){P.lost++;P.combo=0;c.state='leave';c.mood='angry';c.lt=.9;P.leaving.push(c);P.slots[i]=null;say('お客さんが帰っちゃった…');SFX.bad()}
+      if(c.pat<=0){P.lost++;P.combo=0;dismiss(c,'angry');say('お客さんが帰っちゃった…');SFX.bad()}
     }
   });
 }
@@ -634,7 +682,8 @@ function drawBubble(c){
 
 function drawCust(c,i){
   const wait=c.state==='wait';
-  const bob=wait?Math.round(Math.sin(T*4+c.bob)):Math.round(Math.sin(T*14)*1.5);
+  const moving=Math.abs(c.tx-c.x)>1;
+  const bob=!moving&&wait?Math.round(Math.sin(T*4+c.bob)):Math.round(Math.sin(T*14)*1.5);
   const x=c.x+(c.shake>0?Math.sin(T*60)*2:0);
   let y=64+bob,a=1;
   if(c.state==='leave'){a=Math.max(0,c.lt/.9);y-=Math.round((1-a)*10)}
@@ -659,11 +708,17 @@ function decor(level){
 function hintText(){
   if(P.msgT>0)return P.msg;
   if(P.day>2)return '';
+  const serveQ=P.q.some(a=>a.t==='serve');
   const ready=Object.values(P.st).some(a=>a.some(s=>s&&s.state==='ready'));
-  if(P.tray.length)return 'お客さんをクリックして料理を渡そう！';
-  if(ready)return 'できた料理をクリックしてトレイへ！';
-  if(Object.values(P.st).some(a=>a.some(s=>s&&s.state==='cook')))return 'できあがりを待とう…';
-  return 'ふきだしの料理のボタンを押して調理スタート！';
+  if(P.hands.length&&!serveQ)return 'お客さんをタップして料理を届けよう！';
+  if(ready&&!P.q.some(a=>a.t==='take'))return 'できた料理をタップで取りに行こう！';
+  if(Object.values(P.st).some(a=>a.some(s=>s&&s.state==='cook')))return 'タップで次の動きを予約できるよ';
+  return 'ふきだしの料理ボタンで調理を予約！';
+}
+function badge(x,y,list){
+  if(!list||!list.length)return;
+  const s=list.join('・'),w=s.length*5+6;
+  box(Math.round(x),Math.round(y),w,10,'#ffd84a','#3b2418');txt(s,Math.round(x)+w/2,Math.round(y)+1,7,'#3b2418','center');
 }
 SC.play={
   update(dt){updatePlay(dt)},
@@ -671,73 +726,97 @@ SC.play={
     const live=!P.paused&&P.count<=0&&P.t>0;
     const lhit=(x,y,w,h,fn)=>{if(live)hit(x,y,w,h,fn)};
     let tip='';
+    // 予約番号
+    const bd={},cb=new Map();
+    P.q.forEach((a,i)=>{
+      if(a.t==='serve'){if(!cb.has(a.c))cb.set(a.c,[]);cb.get(a.c).push(i+1)}
+      else{const key=a.t==='cook'?'c:'+a.item:'t:'+a.st+':'+a.k;(bd[key]=bd[key]||[]).push(i+1)}
+    });
     // 壁
     R(0,14,W,92,'#f6e2ae');for(let x=0;x<W;x+=16)R(x,14,8,92,'#f3d99b');
     decor(G.up.decor);
     box(4,24,58,24,'#8a4b25','#3b2418');box(6,26,54,20,'#b8662f','#3b2418');
     txt('ナマステ',33,28,9,'#fff3d0','center','#5a2a12');txt('食堂',33,37,8,'#ffe066','center','#5a2a12');
-    // 主人公
-    const hop=P.hop>0?-3:0;
-    spr(P.hop>0||P.combo>=3?BOY_JOY:BOY,8,64+hop,3);
     // お客さん
     P.leaving.forEach(c=>drawCust(c));
-    P.slots.forEach((c,i)=>{if(c){drawCust(c,i);if(c.state==='wait')lhit(c.x-30,20,60,88,()=>serve(i))}});
-    // カウンター
-    R(0,104,W,6,'#d99a58');R(0,104,W,2,'#f0bb7a');R(0,110,W,24,'#8f5a2b');
-    for(let x=0;x<W;x+=48)R(x,110,2,24,'#6e4220');R(0,132,W,2,'#5a3418');
-    const cap=trayOf(),tw=cap*28;const tx=Math.round(240-tw/2);
-    box(tx-3,108,tw+6,25,'#cfd6dc','#59606a');
-    txt('トレイ',tx-8,115,8,'#fff','right','#3b2418');
-    for(let k=0;k<cap;k++){R(tx+k*28+1,110,26,21,'#e8edf0')}
-    P.tray.forEach((id,k)=>{
-      const x=tx+k*28+1;spr(IT[id].spr,x+1,109,1.5);
-      lhit(x,110,26,21,()=>{P.tray.splice(k,1);SFX.bad();say('すてました')});
-      if(inside(x,110,26,21))tip=IT[id].name+'（クリックで すてる）';
+    P.slots.forEach(c=>{
+      if(!c)return;drawCust(c);
+      if(c.state==='wait'){
+        lhit(c.x-30,20,60,88,()=>enqueue({t:'serve',c}));
+        badge(c.x+22,66,cb.get(c));
+      }
     });
-    // メッセージ
-    const ht=hintText();
-    if(ht)wrap(ht,128,8).slice(0,2).forEach((l,i)=>txt(l,6,113+i*10,8,'#fff4c8','left','#3b2418'));
+    // カウンター
+    R(0,104,W,5,'#d99a58');R(0,104,W,2,'#f0bb7a');R(0,109,W,5,'#8f5a2b');
+    // 通路（主人公が歩く）
+    R(0,114,W,36,'#b88a5a');for(let x=0;x<W;x+=32)R(x,114,1,36,'#a67848');R(0,114,W,2,'#8a5f34');
+    const b=P.boy;
+    const bob=b.state==='walk'?-Math.abs(Math.round(Math.sin(T*16)*2)):b.state==='act'?-3:0;
+    ctx.fillStyle='#0000003a';ctx.beginPath();ctx.ellipse(b.x,146,11,3,0,0,7);ctx.fill();
+    spr(b.state==='act'||P.combo>=3?BOY_JOY:BOY,b.x-16,114+bob,2);
+    P.hands.forEach((id,k)=>spr(IT[id].spr,b.x-18+k*20,128+bob,1));
+    if(b.state==='wait')txt('…',b.x,106+bob,12,'#3b2418','center','#fff');
+    // 予約リスト
+    txt('よやく',6,51,8,'#3b2418','left','#fff4c8');
+    P.q.forEach((a,i)=>{
+      const qx=6+(i%3)*19,qy=61+Math.floor(i/3)*19;
+      box(qx,qy,18,18,i===0?'#ffd84a':'#fff','#3b2418');
+      let ic=null;
+      if(a.t==='cook')ic=IT[a.item].spr;
+      else if(a.t==='take'){const sl=P.st[a.st][a.k];if(sl)ic=IT[sl.id].spr}
+      else ic=a.c.spr;
+      if(ic)ctx.drawImage(ic,qx+1,qy+1,16,16);
+      txt(a.t==='cook'?'▶':a.t==='take'?'↑':'♥',qx+16,qy+9,7,a.t==='serve'?'#d9392b':'#3b2418','right','#fff');
+      lhit(qx,qy,18,18,()=>{P.q.splice(i,1);SFX.click()});
+      if(inside(qx,qy,18,18))tip='よやくを取り消す';
+    });
+    // 所持品
+    if(P.hands.length)tip=tip||('持っている: '+P.hands.map(id=>IT[id].name).join('、'));
     // キッチン
-    R(0,134,W,136,'#4a3a35');
+    R(0,150,W,120,'#4a3a35');
     STATIONS.forEach((s,i)=>{
       const x0=i*96,items=ITEMS.filter(it=>it.st===s.id&&it.day<=P.day);
-      box(x0+2,136,92,132,'#5e4a43','#2a1a1e');
-      if(!items.length){txt('？',x0+48,190,24,'#7a665e','center');return}
-      box(x0+4,138,88,12,s.col,'#2a1a1e');txt(s.name,x0+48,139,8,'#fff','center','#2a1a1e');
-      const total=cap2()*30-2,sx=Math.round(x0+48-total/2);
-      for(let k=0;k<cap2();k++){
+      box(x0+2,150,92,118,'#5e4a43','#2a1a1e');
+      if(!items.length){txt('？',x0+48,196,24,'#7a665e','center');return}
+      box(x0+4,152,88,11,s.col,'#2a1a1e');txt(s.name,x0+48,153,8,'#fff','center','#2a1a1e');
+      const cap=capOf(),total=cap*30-4,sx=Math.round(x0+48-total/2);
+      for(let k=0;k<cap;k++){
         const bx=sx+k*30,sl=P.st[s.id][k];
-        box(bx,153,28,28,'#3a2c2a','#1e1214');
-        if(!sl)continue;
-        const it=IT[sl.id];
-        if(sl.state==='cook'){
-          const f=sl.p/cookTime(it);
-          spr(it.sprGray,bx+2,155,1.5,.45);
-          R(bx+2,177,24,3,'#1e1214');R(bx+2,177,Math.round(24*f),3,'#6fd36a');
-          for(let q=0;q<2;q++){const yy=(T*18+q*6)%12;R(bx+8+q*10,153-yy+10,2,2,'#ffffff88')}
-        }else if(sl.state==='ready'){
-          const b=Math.round(Math.abs(Math.sin(T*6))*2);
-          spr(it.spr,bx+2,155-b,1.5);
-          if(it.burn){const f=1-sl.rt/8;R(bx+2,177,24,3,'#1e1214');R(bx+2,177,Math.max(0,Math.round(24*f)),3,f>.5?'#6fd36a':f>.25?'#ffd84a':'#ff5a4a')}
-          if(Math.floor(T*4)%2)txt('✦',bx+22,152,8,'#ffe066','center');
-        }else{
-          spr(it.sprBurnt,bx+2,155,1.5);txt('×',bx+14,157,14,'#ff5a4a','center','#000');
+        box(bx,166,26,26,'#3a2c2a','#1e1214');
+        if(sl){
+          const it=IT[sl.id];
+          if(sl.state==='cook'){
+            const f=sl.p/cookTime(it);
+            spr(it.sprGray,bx+1,167,1.5,.45);
+            R(bx+2,187,22,3,'#1e1214');R(bx+2,187,Math.round(22*f),3,'#6fd36a');
+            for(let q=0;q<2;q++){const yy=(T*18+q*6)%12;R(bx+7+q*10,167-yy+10,2,2,'#ffffff88')}
+          }else if(sl.state==='ready'){
+            const bb=Math.round(Math.abs(Math.sin(T*6))*2);
+            spr(it.spr,bx+1,167-bb,1.5);
+            if(it.burn){const f=1-sl.rt/8;R(bx+2,187,22,3,'#1e1214');R(bx+2,187,Math.max(0,Math.round(22*f)),3,f>.5?'#6fd36a':f>.25?'#ffd84a':'#ff5a4a')}
+            if(Math.floor(T*4)%2)txt('✦',bx+21,164,8,'#ffe066','center');
+          }else{
+            spr(it.sprBurnt,bx+1,167,1.5);txt('×',bx+13,169,14,'#ff5a4a','center','#000');
+          }
+          lhit(bx,166,26,26,()=>enqueue({t:'take',st:s.id,k}));
+          if(inside(bx,166,26,26))tip=sl.state==='burnt'?'こげてる！ タップですてに行く':sl.state==='ready'?it.name+'（タップで取りに行く）':it.name+' 調理中…（タップで完成を待つ）';
+          badge(bx+10,157,bd['t:'+s.id+':'+k]);
         }
-        lhit(bx,153,28,28,()=>takeSlot(s.id,k));
-        if(inside(bx,153,28,28))tip=sl.state==='burnt'?'こげてる！ クリックですてる':sl.state==='ready'?it.name+'（クリックでトレイへ）':it.name+' 調理中…';
       }
       items.forEach((it,k)=>{
-        const bx=x0+4+(k%2)*45,by=186+Math.floor(k/2)*40;
-        const full=!P.st[s.id].slice(0,cap2()).some(v=>!v);
-        const hov=inside(bx,by,43,38)&&live;
-        box(bx,by,43,38,hov?'#a8806a':'#7a5a4a','#2a1a1e');
-        if(full)ctx.globalAlpha=.45;spr(it.spr,bx+10,by+3,1.5);ctx.globalAlpha=1;
-        txt(yen(it.price),bx+21,by+28,8,'#ffe066','center','#2a1a1e');
-        lhit(bx,by,43,38,()=>startCook(it));
-        if(inside(bx,by,43,38))tip=it.name+'  '+cookTime(it).toFixed(1)+'秒';
+        const bx=x0+4+(k%2)*45,by=196+Math.floor(k/2)*37;
+        const hov=inside(bx,by,43,35)&&live;
+        box(bx,by,43,35,hov?'#a8806a':'#7a5a4a','#2a1a1e');
+        spr(it.spr,bx+10,by+2,1.5);
+        txt(yen(it.price),bx+21,by+26,8,'#ffe066','center','#2a1a1e');
+        lhit(bx,by,43,35,()=>enqueue({t:'cook',item:it.id}));
+        if(inside(bx,by,43,35))tip=it.name+'  '+cookTime(it).toFixed(1)+'秒';
+        badge(bx+26,by-2,bd['c:'+it.id]);
       });
     });
-    if(tip)txt(tip,474,113,8,'#fff','right','#3b2418');
+    const ht=hintText();
+    if(ht)wrap(ht,150,8).slice(0,2).forEach((l,i)=>txt(l,6,117+i*10,8,'#fff4c8','left','#3b2418'));
+    if(tip)txt(tip,474,141,8,'#fff','right','#3b2418');
     drawHUD(live,lhit);
     // オーバーレイ
     if(P.count>0){
@@ -749,7 +828,7 @@ SC.play={
     if(P.paused){
       R(0,0,W,H,'#000000bb');txt('ポーズ中',240,80,22,'#fff','center','#3b2418');
       button(170,120,140,24,'つづける',()=>{P.paused=false});
-      button(170,152,140,24,'あきらめる',()=>{scene=G.day>1||G.cash>0?'shop':'title';if(scene==='shop')toShop(true)},{col:'#8a4a5a'});
+      button(170,152,140,24,'あきらめる',()=>{toShop(true)},{col:'#8a4a5a'});
     }
   }
 };
@@ -810,12 +889,12 @@ SC.shop={
     txt('お店をととのえる',20,10,16,'#ffe066','left','#3b2418');
     txt('所持金 '+yen(G.cash),460,12,12,'#fff','right','#3b2418');
     UPS.forEach((u,i)=>{
-      const y=40+i*38,lv=G.up[u.id],max=u.cost.length;
+      const y=40+i*38,lv=G.up[u.id]||0,max=u.cost.length;
       box(14,y,452,34,'#5e4a63','#1e1214');
       txt(u.name,24,y+4,10,'#fff');txt(u.desc,24,y+19,8,'#d8c8e0',  'left',null,false);
       for(let k=0;k<max;k++)R(262+k*12,y+13,9,9,k<lv?'#ffd84a':'#2a1a2e');
       if(lv>=max)button(366,y+5,90,24,'MAX',()=>{},{disabled:true,sz:9});
-      else{const c=u.cost[lv];button(366,y+5,90,24,yen(c),()=>{G.cash-=c;G.up[u.id]++;saveGame();SFX.coin()},{disabled:G.cash<c,sz:10,col:'#3a8a5a'})}
+      else{const c=u.cost[lv];button(366,y+5,90,24,yen(c),()=>{G.cash-=c;G.up[u.id]=(G.up[u.id]||0)+1;saveGame();SFX.coin()},{disabled:G.cash<c,sz:10,col:'#3a8a5a'})}
     });
     const next=Math.min(G.day,10);
     txt('つぎは DAY '+next+(G.day>10?'（最終日）':'')+'   目標 '+yen(calcGoal(next)),20,238,10,'#fff','left','#3b2418');
