@@ -234,152 +234,181 @@ const DRINKS={
  oj:{a:'#ff7a1c',d:'#d65a08'}
 };
 
-/* ---------- 追加の料理ドット絵 (ステージ2・3) ---------- */
-const CUP=[
-"................",
-"....s..s........",
-"...s..s.........",
-"....s..s........",
-"................",
-"..kkkkkkkkkk....",
-".kWeeeeeeeeWk...",
-".kWeEeeeeeeWkkk.",
-".kWWWWWWWWWWkWWk",
-".kWWwWWWWWWWkWWk",
-".kWWWWWWWWWWkWk.",
-"..kWWWWWWWWkk...",
-"...kWWWWWWWk....",
-"....kkkkkkk.....",
-"..kkkkkkkkkkkk..",
-"................"];
-const BOWLSOUP=[
-"................",
-"....gG..gGg.....",
-"..kkkkkkkkkkkk..",
-".kaaadaaaaadaak.",
-"kaannnnaaTTaaddk",
-"kaannnnnaaTTaadk",
-".kaaannnnnnaaaak",
-"..kkaaaaaaaakk..",
-"..kwwwwwwwwwwk..",
-"..kwuwuwuwuwwk..",
-"...kwwwwwwwwk...",
-"....kwwwwwwk....",
-".....kkkkkk.....",
-"...kkkkkkkkkk...",
-"................",
-"................"];
-const PLATERICE=[
-"................",
-"................",
-"..kkkkkkkkkkkk..",
-".kwwwwwwwwwwwwk.",
-"kwrrrrrwmmmmmwwk",
-"kwrrhrrrwmmgmmwk",
-"kwrrrrrrwmmmmmwk",
-"kwwrrrrwwmmmmwwk",
-".kwwwwwwwwwwwwk.",
-"..kkwwwwwwwwkk..",
-"....kkkkkkkk....",
-"................",
-"................",
-"................",
-"................",
-"................"];
-const PASTA=[
-"................",
-"................",
-"....kkkkkkkk....",
-"..kkwwwwwwwwkk..",
-".kwwwSSSSSSwwwk.",
-"kwwwaSSssSSaawwk",
-"kwwaaAaSSSaAaawk",
-"kwwAaaAaaAaaAawk",
-".kwwaAaAaaAaAwwk",
-"..kkwwwwwwwwkk..",
-"....kkkkkkkk....",
-"................",
-"................",
-"................",
-"................",
-"................"];
-const TIRAMISU=[
-"................",
-"................",
-"................",
-"......g.........",
-"...kkkkkkkkkk...",
-"..kBBbBBBBbBBk..",
-"..kBBBBbBBBBBk..",
-"..kWWWWWWWWWWk..",
-"..keeEeeeeEeek..",
-"..kWWWWWWWWWWk..",
-"..keeeeEeeeeek..",
-"..kkkkkkkkkkkk..",
-".kwwwwwwwwwwwwk.",
-"..kkkkkkkkkkkk..",
-"................",
-"................"];
-function pizzaRows(heavy){
-  const rows=[];
-  for(let y=0;y<16;y++){
-    let r='';
-    for(let x=0;x<16;x++){
-      const dx=x-7.5,dy=y-7.5,d=Math.sqrt(dx*dx+dy*dy);let c='.';
-      if(d<=7.7){
-        if(d>7.0)c='k';
-        else if(d>5.7)c=(x+y)%4===0?'N':'n';
-        else{const h=Math.abs(((x+(heavy?3:0))*73856093)^((y+(heavy?7:0))*19349663))%10;c=heavy?(h<2?'W':h<4?'r':h<5?'g':'y'):(h<3?'r':h<4?'g':h<7?'W':'y')}
-      }
-      r+=c;
-    }
-    rows.push(r);
+/* ---------- ペインター: 16x16 を図形で描くと、自動で陰影と輪郭がつく ---------- */
+function shadeHex(h,a){
+  const n=parseInt(h.slice(1),16);let r=n>>16,g=(n>>8)&255,b=n&255;
+  if(a>=0){r+=(255-r)*a;g+=(255-g)*a;b+=(255-b)*a}else{r*=1+a;g*=1+a;b*=1+a}
+  return '#'+[r,g,b].map(v=>Math.round(Math.max(0,Math.min(255,v))).toString(16).padStart(2,'0')).join('');
+}
+function paint(fn){
+  const g=Array.from({length:16},()=>Array(16).fill(null));
+  const P={
+    d(x,y,c){x=Math.round(x);y=Math.round(y);if(x>=0&&x<16&&y>=0&&y<16)g[y][x]=c},
+    r(x,y,w,h,c){for(let j=0;j<h;j++)for(let i=0;i<w;i++)P.d(x+i,y+j,c)},
+    e(cx,cy,rx,ry,c){for(let y=Math.floor(cy-ry);y<=Math.ceil(cy+ry);y++)for(let x=Math.floor(cx-rx);x<=Math.ceil(cx+rx);x++){const dx=(x-cx)/rx,dy=(y-cy)/ry;if(dx*dx+dy*dy<=1)P.d(x,y,c)}},
+    l(x1,y1,x2,y2,c){const n=Math.max(Math.abs(x2-x1),Math.abs(y2-y1))||1;for(let i=0;i<=n;i++)P.d(x1+(x2-x1)*i/n,y1+(y2-y1)*i/n,c)},
+    p(pts,c){pts.forEach(q=>P.d(q[0],q[1],c))},
+    x(x,y,w,h){for(let j=0;j<h;j++)for(let i=0;i<w;i++)if(x+i>=0&&x+i<16&&y+j>=0&&y+j<16)g[y+j][x+i]=null},
+  };
+  fn(P);
+  const cv=document.createElement('canvas');cv.width=cv.height=16;const c2=cv.getContext('2d');
+  const at=(i,j)=>(i>=0&&i<16&&j>=0&&j<16)?g[j][i]:null;
+  for(let y=0;y<16;y++)for(let i=0;i<16;i++){
+    const col=g[y][i];
+    if(col){let k=col;if(!at(i,y-1))k=shadeHex(col,.2);else if(!at(i,y+1))k=shadeHex(col,-.2);c2.fillStyle=k;c2.fillRect(i,y,1,1)}
+    else if(at(i-1,y)||at(i+1,y)||at(i,y-1)||at(i,y+1)){c2.fillStyle='#3b2418';c2.fillRect(i,y,1,1)}
   }
-  return rows;
+  return cv;
 }
+const plateP=(P,cy)=>{cy=cy||10;P.e(8,cy,7,3.6,'#c9d3de');P.e(8,cy-.4,6,3,'#f8fafc')};
+const bowlP=(P,body,band,content)=>{P.e(8,9,6.5,4.2,body);P.r(5,13,6,1,shadeHex(body,-.4));if(band)P.r(3,10,10,1,band);P.e(8,6.5,6.5,2.3,shadeHex(body,.3));P.e(8,6.5,5.5,1.7,content)};
+const glassP=(P,liquid,top)=>{P.r(4,3,8,10,'#cfe6f4');P.r(5,4,6,8,'#eef8ff');if(liquid)P.r(5,top,6,12-top,liquid);P.r(5,12,6,1,'#a8c8dc')};
+const nigiriP=(P,top,stripe,tail)=>{P.r(1,11,14,3,'#c8924a');P.e(8,9.5,5.5,2.8,'#fffdf5');P.e(8,7,6.2,2.5,top);for(let i=0;i<3;i++)P.l(4+i*3,5.5,5+i*3,8.5,stripe);if(tail)P.r(13,5,2,3,tail)};
+function pizzaP(P,fn){for(let y=0;y<16;y++)for(let x=0;x<16;x++){const dx=x-7.5,dy=y-7.5,d=Math.sqrt(dx*dx+dy*dy);if(d<=6.8)P.d(x,y,d>5.5?((x+y)%4===0?'#c8802a':'#e8b060'):fn(x,y,dx,dy))}}
 
-/* ---------- メニュー定義（工程つき） ---------- */
-// spec: 'take|h1:5|top:.7'  take=材料をとる / hN:秒=調理場で調理 / top:秒=トッピング台で作業
-const ITEMS=[],IT={};
-function RC(spec){return spec.split('|').map(p=>{const q=p.split(':');return q[0]==='take'?{k:'take'}:q[0]==='top'?{k:'top',t:+q[1]||.6}:{k:'cook',st:q[0],t:+q[1]}})}
-function def(stage,day,id,name,price,cr,rows,pal,spec,labels){
-  const it={id,name,price,cr,stage,day,steps:RC(spec),labels,rows};
-  it.steps.forEach((s,i)=>{s.label=labels[i]||''});
-  it.spr=mk(id,rows,pal);it.sprBurnt=tint(it.spr,'#150a05',.72);it.sprGray=tint(it.spr,'#000000',.55);
-  ITEMS.push(it);IT[id]=it;
-}
-// --- ステージ1: インド料理 ---
-def(1,1,'kebab','チキンケバブ',970,.38,KEBAB,null,'take|h1:5|top:.7',['ピタをとる','お肉をグリルで焼く','野菜とソースをのせる']);
-def(1,2,'salad','グリーンサラダ',650,.28,SALAD,null,'take|top:1',['お皿をとる','野菜をもってドレッシング']);
-def(1,3,'lassi','ラッシー',350,.2,LASSI,DRINKS.lassi,'take|h4:2',['グラスをとる','ミキサーでまぜる']);
-def(1,4,'naan','プレーンナン',350,.22,NAAN,null,'take|h2:5',['生地をとる','タンドールで焼く']);
-def(1,5,'curry','バターチキンカレー',1100,.3,BUTTERCURRY,{c:'#e8431a',C:'#f5662a',W:'#fff7e8',y:'#ffe27a'},'take|h3:3.5|top:.7',['器をとる','おなべで煮こむ','クリームとパクチーをのせる']);
-def(1,6,'mango','マンゴーラッシー',450,.2,MANGO,DRINKS.mango,'take|h4:2|top:.5',['グラスをとる','ミキサーでまぜる','マンゴーをのせる']);
-def(1,7,'tandoori','タンドリーチキン',840,.4,TANDOORI,null,'take|h1:7|top:.6',['チキンをとる','グリルで焼く','レモンと玉ねぎをそえる']);
-def(1,8,'oj','オレンジジュース',400,.2,OJ,DRINKS.oj,'take|h4:2',['グラスをとる','ジュースをしぼる']);
-def(1,9,'cheese','チーズナン',720,.3,CHEESENAAN,null,'take|top:.7|h2:6',['生地をとる','チーズをのせる','タンドールで焼く']);
-def(1,10,'keema','キーマカレー',990,.3,KEEMACURRY,{c:'#a24a1a',C:'#c0662a',b:'#5a2a10',B:'#4a2210',r:'#2f8a5a',Y:'#ffb000'},'take|h3:3.5|top:.7',['器をとる','おなべで煮こむ','ゆで卵とネギをのせる']);
-def(1,10,'don','チキンケバブ丼',1150,.33,DON,{l:'#c4623a',y:'#e08a4a',o:'#a8452a',B:'#7a2a1a',w:'#2a2a33',W:'#46465a',h:'#8a8a9a'},'take|h3:4|top:.8',['丼をとる','おなべで炒める','野菜とソースをのせる']);
-// --- ステージ2: タイ・ベトナム料理 ---
-const EGG=[[3,4,'e'],[4,4,'e'],[5,4,'e'],[3,5,'e'],[4,5,'y'],[5,5,'y'],[6,5,'e'],[4,6,'e'],[5,6,'e']];
-def(2,1,'gapao','ガパオライス',1320,.33,put(PLATERICE,EGG),{r:'#fff0c0',m:'#8a3a22',g:'#3aa04a',e:'#ffffff',y:'#ff9f00',w:'#dfe8f2'},'take|h1:5|top:.8',['ごはんをもる','ウォックで炒める','目玉焼きとバジルをのせる']);
-def(2,2,'thaitea','タイティー',450,.2,put(GLASS,[[6,6,'W'],[7,7,'W'],[6,8,'W']]),{a:'#ff8a2a',d:'#d96a10',h:'#fff'},'take|h4:2|top:.5',['グラスをとる','お茶をいれる','ミルクをそそぐ']);
-def(2,3,'papaya','パパイヤサラダ',1100,.28,SALAD,{g:'#f2a040',G:'#d0701c',y:'#fff0a0'},'take|top:1.2',['お皿をとる','パパイヤをたたいてあえる']);
-def(2,4,'pho','ベトナムフォー',1320,.28,BOWLSOUP,{a:'#e8dca8',d:'#c8b878',n:'#fbf6e0',T:'#5cc05a'},'take|h3:4|top:.7',['麺をいれる','スープをそそぐ','ハーブとライムをのせる']);
-def(2,5,'khaoman','カオマンガイ',1280,.3,put(PLATERICE,[[12,4,'g'],[13,5,'g'],[12,6,'G'],[11,5,'G']]),{r:'#ffffff',m:'#e8c890',g:'#7ac860',G:'#4a9a40',w:'#dfe8f2'},'take|h2:6|top:.7',['ごはんをもる','鶏を蒸す','きゅうりとタレをそえる']);
-def(2,5,'coconut','ココナッツジュース',400,.2,GLASS,{a:'#f6fbe8',d:'#d0dcb8',h:'#fff'},'take|h4:2',['グラスをとる','ココナッツをそそぐ']);
-def(2,6,'tomyum','トムヤムラーメン',1380,.28,BOWLSOUP,{a:'#e0502a',d:'#b83a1a',n:'#f6e2a8',T:'#ff8f70'},'take|h3:4|top:.8',['麺をいれる','スープで煮る','エビとパクチーをのせる']);
-def(2,6,'chahan','エビチャーハン',1180,.3,put(PLATERICE,[[9,4,'p'],[11,5,'p'],[10,6,'p'],[3,6,'p'],[5,4,'g'],[8,5,'g']]),{r:'#f0c850',m:'#e8b440',g:'#4cb050',p:'#ff8f70',w:'#e4ecf4'},'take|h1:5|top:.7',['ごはんをもる','ウォックで炒める','エビとネギをのせる']);
+/* ---------- ステージ2以降の料理（ぜんぶ新しく描き直し） ---------- */
+const NS={};
+// --- ベース（調理の途中までは共通の材料。ボタンで料理が決まる） ---
+NS.glass=paint(P=>{glassP(P,null);P.l(10,1,8,6,'#d9392b');P.p([[5,5],[5,6]],'#ffffff')});
+NS.rice=paint(P=>{bowlP(P,'#f4f4f4','#4a8ac0','#fffdf2');P.e(8,5.2,4.6,2.6,'#fffdf2');P.p([[6,4],[8,3],[10,4],[7,5]],'#ffffff')});
+NS.noodle=paint(P=>{bowlP(P,'#f4f4f4','#d9a63a','#f1e6b8');P.l(4,6,11,6,'#fbf3d0');P.l(5,7,12,7,'#fbf3d0');P.l(6,5,10,5,'#fff8e0')});
+NS.pasta=paint(P=>{plateP(P,10);P.e(8,8.5,4.6,2.6,'#f6e08c');P.l(4,8,11,9,'#d8a838');P.l(5,10,12,9,'#d8a838');P.l(6,7,11,7,'#d8a838')});
+NS.cup=paint(P=>{P.e(8,11.5,7,2,'#e8eaf0');P.e(8,9,4.2,3.2,'#ffffff');P.e(8,6.6,4,1.2,'#d0d4de');P.r(11,8,3,3,'#ffffff')});
+NS.shari=paint(P=>{P.r(1,11,14,3,'#c8924a');P.e(8,8.5,5.5,3,'#fffdf5');P.p([[6,7],[9,6],[10,8]],'#e8e8e0')});
+// --- ステージ2: タイ・ベトナム ---
+NS.gapao=paint(P=>{plateP(P,10);P.e(5.5,9,3,2,'#fff0c0');P.e(10.5,9.2,3.2,2,'#7a3a22');P.p([[9,8],[11,9],[12,8],[10,10],[12,10]],'#a85a30');P.p([[10,7],[12,9],[9,9]],'#3aa04a');P.p([[11,8],[13,9]],'#e0302a');P.e(8,5.5,3.2,2,'#ffffff');P.e(8,5.5,1.3,1,'#ffb000')});
+NS.chahan=paint(P=>{plateP(P,10);P.e(8,8,5.2,3.2,'#f0c850');P.e(8,6,3.4,2.2,'#f7d868');P.p([[5,8],[7,9],[9,8],[11,9],[10,7],[6,6],[8,5]],'#d9a63a');P.p([[6,8],[7,8],[10,9],[11,9]],'#ff8f70');P.p([[8,6],[5,9],[11,7],[9,10]],'#4cb050');P.p([[7,10],[12,8]],'#ffe27a')});
+NS.khaoman=paint(P=>{plateP(P,10);P.e(5,7.5,3.6,3.4,'#ffffff');P.e(6,6.5,1.6,1.3,'#e8f0f8');P.e(10.5,8,2.6,1.2,'#f2dcae');P.e(11.5,9.4,2.6,1.1,'#ecd2a0');P.e(10.5,10.6,2.4,1,'#f2dcae');P.e(9,5.5,1.2,1.2,'#5cb05a');P.e(11,5,1.2,1.2,'#7ac860');P.e(13,6.5,1.4,1.1,'#8a5a2a')});
+NS.papaya=paint(P=>{bowlP(P,'#a8743a','#7a4a1a','#f09a3a');P.l(4,6,11,5,'#ffc060');P.l(5,7,12,6,'#e87a1a');P.l(6,5,10,7,'#ffb040');P.p([[5,6],[11,5]],'#e0302a');P.l(6,4,10,4,'#3aa04a');P.p([[8,6],[9,7],[7,7]],'#e8c88a')});
+NS.pho=paint(P=>{bowlP(P,'#ffffff','#4a8ac0','#e8dca8');P.l(4,6,11,6,'#fbf6e0');P.l(5,7,12,7,'#fbf6e0');P.p([[6,5],[7,5],[8,5]],'#d98a7a');P.p([[9,4],[10,5],[11,4],[10,3]],'#5cc05a');P.e(12,5,1.6,1.2,'#9bd24a');P.p([[5,7],[11,7]],'#e0302a')});
+NS.tomyum=paint(P=>{bowlP(P,'#fff3d8','#d9392b','#e0502a');P.p([[5,6],[8,7],[11,6],[7,5]],'#ff8a2a');P.p([[6,5],[7,4],[8,4],[9,5],[9,6]],'#ff9f80');P.p([[10,6],[5,7]],'#f6e8c8');P.p([[11,4],[4,5],[10,4]],'#3aa04a');P.d(8,7,'#d01010')});
+NS.thaitea=paint(P=>{glassP(P,'#ff8a2a',7);P.r(5,5,6,2,'#fff3d8');P.p([[7,7],[8,8],[9,7],[7,9]],'#fff3d8');P.p([[9,4],[10,4]],'#e8f8ff');P.r(5,3,2,2,'#ffffff');P.l(10,1,8,5,'#2f8a5a')});
+NS.coconut=paint(P=>{P.e(8,9,5.5,5,'#8a5a2a');P.e(8,5.8,3.8,1.5,'#fffbea');P.p([[5,9],[7,11],[10,10],[11,8],[6,7]],'#6a3a1a');P.e(6,8,1.5,1.2,'#a8743a');P.l(10,1,9,5,'#e0302a')});
 // --- ステージ3: イタリアン ---
-def(3,1,'margherita','マルゲリータ',1500,.3,pizzaRows(false),null,'take|top:.8|h1:6',['生地をとる','トマトとチーズをのせる','オーブンで焼く']);
-def(3,2,'cappuccino','カプチーノ',500,.15,CUP,{e:'#f2e6d0',E:'#c8a070'},'take|h4:3|top:.6',['カップをとる','エスプレッソをいれる','ミルクフォームをのせる']);
-def(3,3,'caesar','シーザーサラダ',900,.3,SALAD,{g:'#a8d860',G:'#6aa83a',y:'#f6e2a8',r:'#f4f4e4'},'take|top:1',['お皿をとる','ロメインとクルトンをもる']);
-def(3,4,'meatpasta','ミートソースパスタ',1400,.25,put(PASTA,[[7,4,'g']]),{a:'#f6d878',A:'#d8a838',S:'#a8321e',s:'#d8523a',g:'#3aa04a'},'take|h2:4.5|top:.7',['パスタをとる','ゆでる','ミートソースをかける']);
-def(3,5,'carbonara','カルボナーラ',1450,.28,put(PASTA,[[7,5,'B'],[9,6,'B'],[6,6,'B'],[8,7,'B']]),{a:'#f6d878',A:'#d8a838',S:'#fff0b0',s:'#fff9d8',B:'#8a4a3a'},'take|h2:4.5|top:.7',['パスタをとる','ゆでる','ソースとベーコンをのせる']);
-def(3,5,'tiramisu','ティラミス',700,.3,TIRAMISU,{B:'#6a3a22',b:'#8a5a3a',e:'#c88a50',E:'#a8683a',W:'#fff6e0'},'take|top:1.2',['スポンジをとる','クリームとココアをかける']);
-def(3,6,'minestrone','ミネストローネ',800,.25,BOWLSOUP,{a:'#e05a30',d:'#b8401a',n:'#f2c14e',T:'#5cc05a'},'take|h3:4|top:.6',['器をとる','野菜を煮こむ','チーズをふる']);
-def(3,6,'pizza4','4種チーズピザ',1900,.32,pizzaRows(true),null,'take|top:.9|h1:6.5',['生地をとる','4種のチーズをのせる','オーブンで焼く']);
+NS.margherita=paint(P=>{pizzaP(P,()=>'#d9392b');[[6,6],[10,7],[7,10],[10,10],[8,8]].forEach(q=>P.e(q[0],q[1],1.4,1.1,'#fff8e8'));P.p([[6,7],[9,6],[8,10],[11,9]],'#2f9a3a')});
+NS.pizza4=paint(P=>{pizzaP(P,(x,y,dx,dy)=>{if(Math.abs(dx)<.6||Math.abs(dy)<.6)return '#c8a050';return dx<0?(dy<0?'#ffe27a':'#8aa0d0'):(dy<0?'#fff4d8':'#e8a050')});P.p([[5,5],[10,6],[6,10],[10,10]],'#3aa04a')});
+NS.meatpasta=paint(P=>{plateP(P,10);P.e(8,8.8,4.8,2.6,'#f6e08c');P.l(4,9,11,10,'#d8a838');P.l(5,8,12,8,'#d8a838');P.e(8,6.6,3.2,1.9,'#b0301e');P.p([[7,6],[9,7],[8,5],[10,6]],'#7a1e12');P.p([[8,4],[9,5]],'#3aa04a')});
+NS.carbonara=paint(P=>{plateP(P,10);P.e(8,8.8,4.8,2.6,'#f6e08c');P.l(4,9,11,10,'#d8a838');P.e(8,6.8,3.6,1.7,'#fff3c8');P.p([[6,7],[10,6],[8,8],[7,5],[9,5]],'#c86a50');P.e(8,5.5,1,.8,'#ffb000');P.p([[7,7],[9,8],[11,7]],'#3a2a20')});
+NS.caesar=paint(P=>{bowlP(P,'#fff3d8','#c8a060','#a8d860');P.e(8,5,5.4,2.8,'#6aa83a');P.p([[5,4],[8,3],[11,4],[6,6],[10,6]],'#a8d860');P.r(5,4,2,2,'#e8b860');P.r(10,5,2,2,'#e8b860');P.r(8,6,2,1,'#e8b860');P.p([[8,4],[7,5],[11,6],[4,6]],'#fff8e0')});
+NS.tiramisu=paint(P=>{P.e(8,12.5,7,1.8,'#dfe6ee');P.r(3,4,10,2,'#6a3a22');P.r(3,6,10,2,'#fff6e0');P.r(3,8,10,2,'#c88a50');P.r(3,10,10,2,'#fff6e0');P.p([[5,4],[9,4],[11,5]],'#8a5a3a');P.p([[8,2],[9,3]],'#3aa04a')});
+NS.espresso=paint(P=>{P.e(8,11.5,7,2,'#e8eaf0');P.r(5,6,6,5,'#ffffff');P.e(8,6,3,1.1,'#2a1a10');P.e(8,6,2,.7,'#b8783a');P.r(11,7,3,3,'#ffffff');P.p([[7,3],[8,4],[9,2]],'#d8e0e8')});
+NS.cappuccino=paint(P=>{P.e(8,11.5,7.2,2,'#e8eaf0');P.e(8,8.5,5.6,3.4,'#ffffff');P.e(8,6.5,5,1.7,'#d8b48a');P.p([[7,6],[8,7],[9,6],[8,6]],'#fff6e8');P.r(12,8,3,3,'#ffffff');P.r(13,9,1,1,'#e8eaf0')});
+NS.minestrone=paint(P=>{bowlP(P,'#c8602a','#8a3a1a','#e05a30');const c=['#3aa04a','#f2c14e','#ffffff','#3aa04a','#f08a2a','#ffffff'];[[5,6],[7,5],[9,6],[11,5],[6,7],[10,7]].forEach((q,i)=>P.d(q[0],q[1],c[i]));P.p([[8,4],[9,4]],'#2f8a3a');P.d(8,6,'#fff8e0')});
+// --- ステージ4: 和食 ---
+NS.maguro=paint(P=>nigiriP(P,'#c8283a','#e8586a'));
+NS.salmon=paint(P=>nigiriP(P,'#ff8a4a','#ffe8d8'));
+NS.ebi=paint(P=>nigiriP(P,'#ffb090','#e0502a','#e0502a'));
+NS.tempura=paint(P=>{P.r(1,10,14,3,'#e8e8e0');P.e(6,8,4.2,1.7,'#e8a838');P.e(9.5,6.5,4.2,1.7,'#f0b848');P.e(7,10,3.4,1.4,'#dca030');P.p([[11,5],[12,5],[2,8],[2,9]],'#e0502a');P.p([[5,7],[8,6],[6,9]],'#fff0b0');P.e(13,10,1.6,1.3,'#ffe066');P.e(2.5,11,1.6,1,'#7a4a2a')});
+NS.udon=paint(P=>{bowlP(P,'#e8eef4','#6a8ab0','#f3e6b8');P.l(4,6,11,5,'#fffdf5');P.l(5,7,12,6,'#fffdf5');P.l(4,5,9,7,'#fffdf5');P.p([[6,5],[7,5],[8,5],[7,4]],'#c8802a');P.e(10,5,1.2,1,'#ffffff');P.d(10,5,'#ff9fb0');P.p([[5,4],[9,4],[11,6]],'#3aa04a')});
+NS.ocha=paint(P=>{P.r(4,6,8,7,'#f6f0e0');P.r(4,9,8,2,'#5a8a3a');P.e(8,6,3.9,1.3,'#7ac04a');P.p([[6,3],[7,4],[9,3],[10,4]],'#d8e0e8')});
+// --- ステージ5: 中華 ---
+NS.gyoza=paint(P=>{plateP(P,10);[[5,8.5],[8.5,10],[11,7.5]].forEach(q=>{P.e(q[0],q[1],3,1.8,'#f0dca8');P.r(Math.round(q[0]-2),Math.round(q[1]+1),5,1,'#b87830')});P.p([[4,7],[6,7],[8,9],[10,9]],'#d8c088');P.e(8,5,2,1,'#3a2a20')});
+NS.shumai=paint(P=>{P.e(8,9,6.5,4,'#c8924a');for(let i=0;i<3;i++)P.l(3+i*4,6,3+i*4,12,'#a8743a');P.e(8,6.8,6.5,2.2,'#d8a860');P.e(6,6,2.2,1.6,'#f2c860');P.e(10,6,2.2,1.6,'#f2c860');P.e(8,5,1.8,1.3,'#f2c860');P.p([[6,5],[10,5],[8,4]],'#3aa04a');P.p([[7,2],[9,2],[6,3]],'#e8f0f8')});
+NS.mapo=paint(P=>{bowlP(P,'#2a2a30','#c9342a','#b01e12');[[5,5],[8,6],[10,5],[7,7]].forEach(q=>P.r(q[0],q[1],2,2,'#fffdf5'));P.p([[6,7],[9,7],[11,6]],'#ff5a2a');P.p([[9,5],[5,7],[11,7]],'#5a2a1a');P.p([[7,5],[10,4]],'#3aa04a')});
+NS.ramen=paint(P=>{bowlP(P,'#c9342a','#f2c14e','#d8a04a');P.l(4,6,11,6,'#f6e2a8');P.l(5,7,12,7,'#f6e2a8');P.e(6,5.3,1.8,1.4,'#ffffff');P.e(6,5.3,.8,.7,'#ffb000');P.e(10,5.8,2.2,1.3,'#c88a6a');P.r(12,2,2,4,'#1a2a1a');P.e(8.5,4.2,1,.9,'#ffffff');P.p([[4,5],[8,6],[11,7]],'#3aa04a')});
+NS.subuta=paint(P=>{plateP(P,10);P.e(5,8.5,2.3,1.8,'#c8601a');P.e(9.5,9,2.3,1.8,'#d8701a');P.e(7.5,6.5,2.1,1.6,'#c8601a');P.p([[4,8],[9,8],[7,6]],'#f0a050');P.r(10,6,2,2,'#e0302a');P.r(3,10,2,2,'#3aa04a');P.r(11,10,2,2,'#ffe066');P.p([[6,11],[12,8]],'#f0a0c0')});
+NS.jasmine=paint(P=>{P.e(8,12.5,6,1.3,'#f0f0f4');P.r(5,6,6,7,'#e8f6ee');P.r(6,7,4,5,'#cfe8a0');P.p([[7,4],[8,3],[9,4],[8,5]],'#ffffff');P.d(8,4,'#ffe066');P.p([[6,2],[10,2]],'#d8e0e8')});
+// --- ステージ6: アメリカン ---
+NS.burger=paint(P=>{P.e(8,4.6,5.6,2.6,'#d89040');P.p([[6,3],[8,2],[10,3],[9,4],[7,4]],'#ffe9b0');P.r(2,7,12,1,'#5cc05a');P.r(2,8,12,1,'#f6c030');P.r(3,9,10,1,'#e0302a');P.r(3,10,10,2,'#6a3a1e');P.e(8,12.5,5.6,1.4,'#d89040')});
+NS.hotdog=paint(P=>{P.e(8,9.5,7,3,'#e0a860');P.e(8,7.8,7.4,1.5,'#c8452a');P.p([[3,7],[5,6],[7,7],[9,6],[11,7],[13,6]],'#ffd020');P.e(8,11,6.2,1.3,'#c88a40')});
+NS.taco=paint(P=>{P.e(8,9.5,6.8,5,'#f0c050');P.x(0,0,16,8);P.p([[5,11],[8,12],[11,11],[7,10],[10,10]],'#d8a030');P.e(8,7,6,1.6,'#5cc05a');P.p([[5,5.5],[8,5],[11,5.5]],'#e0302a');P.r(5,6,6,1,'#f6c030');P.r(6,7,4,1,'#7a3a22');P.d(8,4,'#ffffff')});
+NS.fries=paint(P=>{[[4,3,6],[6,1,8],[8,2,7],[10,1,8],[11,3,6]].forEach(q=>P.r(q[0],q[1],1,q[2],q[0]%2?'#f0c850':'#e8b030'));P.r(4,8,8,6,'#d9392b');P.r(5,10,6,2,'#ffffff');P.r(3,8,10,1,'#b01e12')});
+NS.nachos=paint(P=>{P.e(8,11,7,2.8,'#c8924a');P.e(8,9,6,3,'#f0c040');[[4,8],[7,6],[11,8],[9,10],[6,10]].forEach(q=>{P.l(q[0],q[1],q[0]+2,q[1]+2,'#e0a830');P.l(q[0],q[1],q[0]+2,q[1],'#e0a830')});P.e(8,8,4,1.6,'#f6c030');P.p([[6,8],[10,9],[8,7]],'#e0302a');P.p([[5,9],[11,7]],'#3aa04a');P.e(8,6.5,1.5,1.1,'#ffffff')});
+NS.cola=paint(P=>{glassP(P,'#4a2a1a',5);P.r(5,4,6,1,'#c8a888');P.p([[6,6],[9,7],[7,9]],'#a8c8d8');P.l(10,1,9,5,'#e0302a');P.e(12,3,1.5,1.5,'#ffe066')});
+// --- ステージ7: フレンチ ---
+NS.onionsoup=paint(P=>{P.e(8,9,6.5,4.5,'#7a4a2a');P.r(1,7,2,2,'#7a4a2a');P.r(13,7,2,2,'#7a4a2a');P.e(8,6.5,5.7,2.5,'#e8b050');P.p([[6,6],[10,7],[8,5],[5,7]],'#8a4a1a');P.p([[3,7],[13,8],[4,8]],'#fff0a0');P.r(3,10,10,1,'#c8a060')});
+NS.nicoise=paint(P=>{plateP(P,10);P.e(8,9,6,3,'#a8d860');P.e(5,8,1.8,1.3,'#ffffff');P.d(5,8,'#ffb000');P.e(10,8,1.8,1.3,'#e0302a');P.e(8,9.6,2,1.2,'#d8a898');P.p([[6,10],[11,10],[9,7]],'#2a2a30');P.l(4,10,7,11,'#3aa04a')});
+NS.steak=paint(P=>{plateP(P,10);P.e(7,8.5,4.6,3,'#7a3a22');P.l(4,7,8,10,'#3a1a10');P.l(6,7,10,10,'#3a1a10');P.e(7,7,1.2,.8,'#ffe066');P.r(12,6,1,5,'#3aa04a');P.r(13,6,1,4,'#4cb050');P.e(12,11,1.8,1.3,'#f2c860')});
+NS.fish=paint(P=>{plateP(P,10);P.e(7.5,8.5,5.5,2.6,'#f0b848');P.l(4,8,11,9,'#d89030');P.l(5,10,10,9,'#d89030');P.e(12.5,6,1.8,1.8,'#ffe066');P.p([[12,6],[13,6]],'#fff4b0');P.p([[4,6],[6,6],[9,6]],'#3aa04a')});
+NS.brulee=paint(P=>{P.e(8,11.5,7,1.8,'#dfe6ee');P.r(3,8,10,4,'#f8f4ec');P.e(8,8,5.6,1.8,'#c8782a');P.l(5,8,10,8,'#8a4a1a');P.l(7,7,8,9,'#8a4a1a');P.p([[6,7],[10,8]],'#f0a850');P.d(12,5,'#e0302a');P.d(3,5,'#3aa04a')});
+NS.coffee=paint(P=>{P.r(3,6,9,7,'#3a4a8a');P.e(7.5,6,4.3,1.2,'#2a1a10');P.e(7.5,6,3,.8,'#6a3a1e');P.r(12,7,3,4,'#3a4a8a');P.x(13,8,1,2);P.p([[5,3],[7,4],[9,2]],'#d8e0e8')});
+/* ---------- メニュー定義（工程つき） ----------
+   Tk=材料をとる / C=調理場で調理 / Tp=トッピング台で仕上げ。choice:true の工程は「ボタンで選ぶ」工程（ベース料理→選んだ料理に変わる）
+   label の {S} は、いまのステージでの調理場の名前に置きかわる */
+const Tk=l=>({k:'take',label:l});
+const C=(st,t,label,o)=>Object.assign({k:'cook',st,t,label},o||{});
+const Tp=(t,label,o)=>Object.assign({k:'top',t,label},o||{});
+const ITEMS=[],IT={};
+function def(id,name,price,cr,sprite,steps,o){
+  const it=Object.assign({id,name,price,cr,steps,spr:sprite,course:2},o||{});
+  it.sprBurnt=tint(sprite,'#150a05',.72);it.sprGray=tint(sprite,'#000000',.55);
+  ITEMS.push(it);IT[id]=it;return it;
+}
+const base=(id,name,sprite,steps,opts)=>def(id,name,400,0,sprite,steps,{base:true,opts});
+const fromBase=(from,o)=>Object.assign({from},o||{});
+const CH={choice:true};
 
+// ===== ステージ1: インド料理 =====
+def('kebab','チキンケバブ',970,.38,mk('kebab',KEBAB),[Tk('ピタをとる'),C('h1',5,'お肉を{S}で焼く'),Tp(.7,'野菜とソースをのせる')]);
+def('salad','グリーンサラダ',650,.28,mk('salad',SALAD),[Tk('お皿をとる'),Tp(1,'野菜をもってドレッシング')],{course:1});
+base('glass','グラス',NS.glass,[Tk('グラスをとる'),C('h4',2,'{S}のボタンで味を選ぶ',CH)],['lassi','mango','oj','thaitea','coconut']);
+def('lassi','ラッシー',350,.2,mk('lassi',LASSI,DRINKS.lassi),[Tk('グラスをとる'),C('h4',2,'ヨーグルトをそそぐ',CH)],fromBase('glass',{course:3}));
+def('mango','マンゴーラッシー',450,.2,mk('mango',MANGO,DRINKS.mango),[Tk('グラスをとる'),C('h4',2,'ヨーグルトをそそぐ',CH),Tp(.5,'マンゴーをのせる')],fromBase('glass',{course:3}));
+def('oj','オレンジジュース',400,.2,mk('oj',OJ,DRINKS.oj),[Tk('グラスをとる'),C('h4',2,'ジュースをしぼる',CH)],fromBase('glass',{course:3}));
+def('naan','プレーンナン',350,.22,mk('naan',NAAN),[Tk('生地をとる'),C('h2',5,'{S}で焼く')]);
+def('cheese','チーズナン',720,.3,mk('cheese',CHEESENAAN),[Tk('生地をとる'),Tp(.7,'チーズをのせる'),C('h2',6,'{S}で焼く')]);
+def('curry','バターチキンカレー',1100,.3,mk('curry',BUTTERCURRY,{c:'#e8431a',C:'#f5662a',W:'#fff7e8',y:'#ffe27a'}),[Tk('器をとる'),C('h3',3.5,'{S}で煮こむ'),Tp(.7,'クリームとパクチーをのせる')]);
+def('keema','キーマカレー',990,.3,mk('keema',KEEMACURRY,{c:'#a24a1a',C:'#c0662a',b:'#5a2a10',B:'#4a2210',r:'#2f8a5a',Y:'#ffb000'}),[Tk('器をとる'),C('h3',3.5,'{S}で煮こむ'),Tp(.7,'ゆで卵とネギをのせる')]);
+def('tandoori','タンドリーチキン',840,.4,mk('tandoori',TANDOORI),[Tk('チキンをとる'),C('h1',7,'{S}で焼く'),Tp(.6,'レモンと玉ねぎをそえる')]);
+def('don','チキンケバブ丼',1150,.33,mk('don',DON,{l:'#c4623a',y:'#e08a4a',o:'#a8452a',B:'#7a2a1a',w:'#2a2a33',W:'#46465a',h:'#8a8a9a'}),[Tk('丼をとる'),C('h3',4,'{S}で炒める'),Tp(.8,'野菜とソースをのせる')]);
+
+// ===== ステージ2: タイ・ベトナム（トッピングを選んで料理が決まる） =====
+base('rice','ごはん',NS.rice,[Tk('ごはんをもる'),C('h1',5,'{S}で炒める'),Tp(.8,'トッピングを選ぶ',CH)],['gapao','chahan']);
+def('gapao','ガパオライス',1320,.33,NS.gapao,[Tk('ごはんをもる'),C('h1',5,'{S}で炒める'),Tp(.8,'目玉焼きとバジルをのせる',CH)],fromBase('rice'));
+def('chahan','エビチャーハン',1180,.3,NS.chahan,[Tk('ごはんをもる'),C('h1',5,'{S}で炒める'),Tp(.7,'エビとネギをのせる',CH)],fromBase('rice'));
+base('noodle','麺',NS.noodle,[Tk('麺をいれる'),C('h3',4,'{S}でスープを煮る'),Tp(.7,'トッピングを選ぶ',CH)],['pho','tomyum']);
+def('pho','ベトナムフォー',1320,.28,NS.pho,[Tk('麺をいれる'),C('h3',4,'{S}でスープを煮る'),Tp(.7,'ハーブとライムをのせる',CH)],fromBase('noodle'));
+def('tomyum','トムヤムラーメン',1380,.28,NS.tomyum,[Tk('麺をいれる'),C('h3',4,'{S}でスープを煮る'),Tp(.8,'エビとパクチーをのせる',CH)],fromBase('noodle'));
+def('khaoman','カオマンガイ',1280,.3,NS.khaoman,[Tk('ごはんをもる'),C('h2',6,'鶏を{S}で蒸す'),Tp(.7,'きゅうりとタレをそえる')]);
+def('papaya','パパイヤサラダ',1100,.28,NS.papaya,[Tk('お皿をとる'),Tp(1.2,'パパイヤをたたいてあえる')],{course:1});
+def('thaitea','タイティー',450,.2,NS.thaitea,[Tk('グラスをとる'),C('h4',2,'お茶をいれる',CH),Tp(.5,'ミルクをそそぐ')],fromBase('glass',{course:3}));
+def('coconut','ココナッツジュース',400,.2,NS.coconut,[Tk('グラスをとる'),C('h4',2,'ココナッツをそそぐ',CH)],fromBase('glass',{course:3}));
+
+// ===== ステージ3: イタリアン（ゆでてから、ソース鍋でソースを選ぶ2段階調理） =====
+base('pasta','パスタ',NS.pasta,[Tk('パスタをとる'),C('h2',4.5,'{S}でゆでる'),C('h3',3,'ソースを選んで{S}で和える',CH),Tp(.7,'仕上げをのせる')],['meatpasta','carbonara']);
+def('meatpasta','ミートソースパスタ',1400,.25,NS.meatpasta,[Tk('パスタをとる'),C('h2',4.5,'{S}でゆでる'),C('h3',3,'{S}でミートソースと和える',CH),Tp(.7,'バジルをのせる')],fromBase('pasta'));
+def('carbonara','カルボナーラ',1450,.28,NS.carbonara,[Tk('パスタをとる'),C('h2',4.5,'{S}でゆでる'),C('h3',3,'{S}でクリームソースと和える',CH),Tp(.7,'ベーコンとこしょうをのせる')],fromBase('pasta'));
+def('margherita','マルゲリータ',1500,.3,NS.margherita,[Tk('生地をとる'),Tp(.8,'トマトとチーズをのせる'),C('h1',6,'{S}で焼く')]);
+def('pizza4','4種チーズピザ',1900,.32,NS.pizza4,[Tk('生地をとる'),Tp(.9,'4種のチーズをのせる'),C('h1',6.5,'{S}で焼く')]);
+def('minestrone','ミネストローネ',800,.25,NS.minestrone,[Tk('器をとる'),C('h3',4,'{S}で野菜を煮こむ'),Tp(.6,'チーズをふる')],{course:1});
+def('caesar','シーザーサラダ',900,.3,NS.caesar,[Tk('お皿をとる'),Tp(1,'ロメインとクルトンをもる')],{course:1});
+def('tiramisu','ティラミス',700,.3,NS.tiramisu,[Tk('スポンジをとる'),Tp(1.2,'クリームとココアをかける')],{course:3});
+base('cup','カップ',NS.cup,[Tk('カップをとる'),C('h4',3,'{S}のボタンで選ぶ',CH)],['espresso','cappuccino']);
+def('espresso','エスプレッソ',400,.15,NS.espresso,[Tk('カップをとる'),C('h4',3,'エスプレッソをいれる',CH)],fromBase('cup',{course:3}));
+def('cappuccino','カプチーノ',500,.15,NS.cappuccino,[Tk('カップをとる'),C('h4',3,'エスプレッソをいれる',CH),Tp(.6,'ミルクフォームをのせる')],fromBase('cup',{course:3}));
+
+// ===== ステージ4: 和食（炊飯器は1回で3貫ぶん） =====
+base('shari','しゃり',NS.shari,[Tk('しゃりをとる'),C('h1',8,'{S}でまとめて炊く',{batch:3}),Tp(.8,'ネタを選んでにぎる',CH)],['maguro','salmon','ebi']);
+def('maguro','まぐろ',700,.4,NS.maguro,[Tk('しゃりをとる'),C('h1',8,'{S}でまとめて炊く',{batch:3}),Tp(.8,'まぐろをのせる',CH)],fromBase('shari'));
+def('salmon','サーモン',650,.38,NS.salmon,[Tk('しゃりをとる'),C('h1',8,'{S}でまとめて炊く',{batch:3}),Tp(.8,'サーモンをのせる',CH)],fromBase('shari'));
+def('ebi','えび',600,.36,NS.ebi,[Tk('しゃりをとる'),C('h1',8,'{S}でまとめて炊く',{batch:3}),Tp(.8,'えびをのせる',CH)],fromBase('shari'));
+def('tempura','天ぷら',1100,.33,NS.tempura,[Tk('えびをとる'),C('h2',5,'{S}で揚げる'),Tp(.6,'天つゆとレモンをそえる')]);
+def('udon','きつねうどん',950,.25,NS.udon,[Tk('麺をとる'),C('h3',4,'{S}でゆでる'),Tp(.7,'だしとあげをのせる')]);
+def('ocha','お茶',300,.1,NS.ocha,[Tk('茶葉をとる'),C('h4',2.5,'{S}でいれる')],{course:3});
+
+// ===== ステージ5: 中華（団体のお客さんが大量注文） =====
+def('gyoza','焼き餃子',700,.3,NS.gyoza,[Tk('皮とあんをとる'),C('h1',5,'{S}で焼く'),Tp(.6,'ラー油とタレをそえる')],{course:1});
+def('shumai','焼売',750,.3,NS.shumai,[Tk('あんをとる'),C('h2',6,'{S}で蒸す'),Tp(.5,'グリーンピースをのせる')],{course:1});
+def('mapo','麻婆豆腐',1050,.3,NS.mapo,[Tk('器をとる'),C('h3',4,'{S}で煮こむ'),Tp(.7,'ネギと山椒をふる')]);
+def('ramen','醤油ラーメン',980,.28,NS.ramen,[Tk('麺をとる'),C('h3',4.5,'{S}でゆでてスープをかける'),Tp(1,'チャーシューと卵をのせる')]);
+def('subuta','酢豚',1200,.35,NS.subuta,[Tk('お肉をとる'),C('h1',5.5,'{S}で炒める'),Tp(.8,'あんをからめる')]);
+def('jasmine','ジャスミン茶',400,.1,NS.jasmine,[Tk('茶葉をとる'),C('h4',2.5,'{S}でいれる')],{course:3});
+
+// ===== ステージ6: アメリカン（材料棚の在庫が切れる） =====
+def('burger','ハンバーガー',1100,.35,NS.burger,[Tk('バンズをとる'),C('h1',5,'パティを{S}で焼く'),Tp(1,'野菜とチーズをはさむ')]);
+def('hotdog','ホットドッグ',800,.3,NS.hotdog,[Tk('パンをとる'),C('h1',4,'ソーセージを{S}で焼く'),Tp(.7,'マスタードをかける')]);
+def('taco','タコス',900,.3,NS.taco,[Tk('シェルをとる'),C('h1',3.5,'お肉を{S}で炒める'),Tp(.9,'野菜とサルサをのせる')]);
+def('fries','フライドポテト',600,.25,NS.fries,[Tk('じゃがいもをとる'),C('h2',5,'{S}で揚げる'),Tp(.4,'塩をふる')],{course:1});
+def('nachos','ナチョス',850,.28,NS.nachos,[Tk('チップスをとる'),C('h2',4,'{S}で揚げる'),Tp(.9,'チーズとサルサをかける')],{course:1});
+def('cola','コーラ',350,.12,NS.cola,[Tk('グラスをとる'),C('h4',2,'{S}で注ぐ')],{course:3});
+
+// ===== ステージ7: フレンチ（コースは前菜→メイン→デザートの順に出す） =====
+def('onionsoup','オニオングラタンスープ',1100,.28,NS.onionsoup,[Tk('クロックをとる'),C('h3',4,'スープを{S}で煮こむ'),Tp(.6,'チーズをのせる'),C('h2',3,'{S}で焼き色をつける')],{course:1});
+def('nicoise','ニース風サラダ',1000,.3,NS.nicoise,[Tk('お皿をとる'),Tp(1.2,'野菜とツナをもりつける')],{course:1});
+def('steak','サーロインステーキ',2200,.4,NS.steak,[Tk('お肉をとる'),C('h1',6,'{S}で焼く'),Tp(.8,'ソースとつけあわせをそえる')]);
+def('fish','白身魚のムニエル',1800,.35,NS.fish,[Tk('白身魚をとる'),C('h3',4.5,'{S}でムニエルにする'),Tp(.7,'レモンとバターをのせる')]);
+def('brulee','クレームブリュレ',800,.25,NS.brulee,[Tk('カスタードをとる'),C('h2',5,'{S}で焼いて固める'),Tp(.6,'砂糖をふってキャラメリゼ')],{course:3});
+def('coffee','コーヒー',500,.12,NS.coffee,[Tk('カップをとる'),C('h4',3,'{S}でいれる')],{course:3});
 /* ---------- キャラクターのドット絵 ---------- */
 const hd=i=>"...k"+i+"k...";
 const PERSON=[
@@ -466,7 +495,7 @@ function startBgm(){
 }
 
 /* ---------- セーブ ---------- */
-const KEY='kenta_restaurant_v2';
+const KEY='kenta_restaurant_v2c';
 function fixSave(g){g.up=Object.assign({cap:0,tray:0,walk:0,pat:0,spd:0,decor:0},g.up||{});g.itemUp=g.itemUp||{};g.stage=g.stage||1;return g}
 function loadSave(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.day)return fixSave(s)}catch(e){}return null}
 function saveGame(){try{localStorage.setItem(KEY,JSON.stringify(G))}catch(e){}}
@@ -503,30 +532,88 @@ function drawMute(){
 }
 
 /* ---------- ゲームデータ ---------- */
+const ART_COL={grill:'#b9502a',tandoor:'#a8602a',pot:'#a03a4a',stockpot:'#7a5a8a',server:'#2f7fa8',wok:'#c0502a',steamer:'#a8803a',oven:'#8a4a3a',pasta:'#3a7a8a',sauce:'#a03a4a',espresso:'#5a3a2a',rice:'#6a8a9a',fryer:'#b8892a',kettle:'#5a8a6a',teapot:'#4a8a5a',griddle:'#6a6a7a',soda:'#c9342a',coffee:'#4a3a2a'};
+const HT=(n,a,b)=>({n,a,b});
+const GIM={
+ 1:'ドリンクは、サーバーのボタンで味を選ぶ',
+ 2:'トッピング台のボタンで、のせるものを選ぶと料理が決まる',
+ 3:'パスタは、ゆでてからソース鍋へ。ソースを選んで和える（2段階調理）',
+ 4:'炊飯器は1回で3つぶん！ ネタを選んでにぎろう',
+ 5:'団体のお客さんが、大量注文でやって来る',
+ 6:'材料棚の在庫が切れる。「＋」ボタンで補充しよう',
+ 7:'コースは、前菜→メイン→デザートの順に出す',
+ 8:'世界大会の予選。ドリンクやトッピングの選択、2段階調理が全部登場',
+ 9:'準決勝。まとめ炊き・団体のお客さん・在庫切れに注意',
+ 10:'決勝。すべてのギミックに、コースの提供順もくわわる',
+};
+const WORLD=[HT('ワールドコンロ','grill',1),HT('ワールド窯','oven',1),HT('ワールド大鍋','pot',0),HT('ドリンクバー','server',0)];
 const STAGES=[
- {id:1,name:'ナマステ食堂',sub:'インド料理',days:10,wall:'#f6e2ae',wall2:'#f3d99b',sign:'#b8662f',signA:'ナマステ',signB:'食堂',
-  heat:['グリル','タンドール','おなべ','ドリンク'],burn:[1,1,0,0],
-  fin:{rent:180000,hours:2,elec:700,gas:800,water:250,misc:400,prize:40000}},
- {id:2,name:'サワディー亭',sub:'タイ・ベトナム料理',days:6,wall:'#e4f0c6',wall2:'#d8e8b4',sign:'#2f8a5a',signA:'サワディー',signB:'亭',
-  heat:['ウォック','蒸し器','スープ鍋','ドリンク'],burn:[1,1,0,0],
-  fin:{rent:280000,hours:4,elec:1200,gas:1300,water:350,misc:600,prize:60000}},
- {id:3,name:'トラットリア ケンタ',sub:'イタリアン',days:6,wall:'#f6dccc',wall2:'#eecbb6',sign:'#a83a3a',signA:'トラットリア',signB:'ケンタ',
-  heat:['オーブン','パスタ鍋','ソース鍋','エスプレッソ'],burn:[1,0,0,0],
-  fin:{rent:420000,hours:6,elec:1800,gas:1800,water:500,misc:900,prize:0}},
+ {name:'ナマステ食堂',sub:'インド料理',days:10,wall:'#f6e2ae',wall2:'#f3d99b',sign:'#b8662f',signA:'ナマステ',signB:'食堂',
+  heat:[HT('グリル','grill',1),HT('タンドール','tandoor',1),HT('おなべ','pot',0),HT('ドリンクサーバー','server',0)],
+  menu:[['kebab',1],['salad',2],['lassi',3],['naan',4],['curry',5],['mango',6],['tandoori',7],['oj',8],['cheese',9],['keema',10],['don',10]]},
+ {name:'サワディー亭',sub:'タイ・ベトナム料理',days:6,wall:'#e4f0c6',wall2:'#d8e8b4',sign:'#2f8a5a',signA:'サワディー',signB:'亭',
+  heat:[HT('ウォック','wok',1),HT('蒸し器','steamer',0),HT('スープ鍋','pot',0),HT('ドリンクサーバー','server',0)],
+  menu:[['gapao',1],['thaitea',2],['papaya',2],['chahan',3],['pho',4],['khaoman',5],['coconut',5],['tomyum',6]]},
+ {name:'トラットリア ケンタ',sub:'イタリアン',days:6,wall:'#f6dccc',wall2:'#eecbb6',sign:'#a83a3a',signA:'トラットリア',signB:'ケンタ',
+  heat:[HT('ピザ窯','oven',1),HT('パスタ鍋','pasta',0),HT('ソース鍋','sauce',0),HT('エスプレッソ','espresso',0)],
+  menu:[['margherita',1],['espresso',2],['caesar',3],['cappuccino',3],['meatpasta',4],['carbonara',5],['tiramisu',5],['minestrone',6],['pizza4',6]]},
+ {name:'すし処 ケンタ',sub:'和食',days:6,wall:'#efe6d2',wall2:'#e6dbc2',sign:'#6a4a2a',signA:'すし処',signB:'ケンタ',
+  heat:[HT('炊飯器','rice',0),HT('天ぷら鍋','fryer',1),HT('お湯','kettle',0),HT('急須','teapot',0)],
+  menu:[['maguro',1],['salmon',2],['ocha',2],['tempura',3],['ebi',4],['udon',5]]},
+ {name:'中華楼 ケンタ',sub:'中華料理',days:6,wall:'#f6d0c8',wall2:'#eebfb4',sign:'#c9342a',signA:'中華楼',signB:'ケンタ',flags:{group:1},
+  heat:[HT('中華鍋','wok',1),HT('せいろ','steamer',0),HT('寸胴','stockpot',0),HT('お茶','teapot',0)],
+  menu:[['gyoza',1],['jasmine',2],['shumai',2],['mapo',3],['ramen',4],['subuta',5]]},
+ {name:'ケンタ・ダイナー',sub:'アメリカン',days:6,wall:'#d6ecf0',wall2:'#c6e0e6',sign:'#2f6fb0',signA:'ダイナー',signB:'ケンタ',flags:{stock:1},
+  heat:[HT('グリドル','griddle',1),HT('フライヤー','fryer',1),HT('なべ','pot',0),HT('ドリンクマシン','soda',0)],
+  menu:[['burger',1],['cola',2],['fries',2],['hotdog',3],['taco',4],['nachos',5]]},
+ {name:'ビストロ ケンタ',sub:'フレンチ',days:6,wall:'#ece4f0',wall2:'#e0d4ea',sign:'#5a3a7a',signA:'ビストロ',signB:'ケンタ',flags:{course:1},
+  heat:[HT('ステーキグリル','grill',1),HT('オーブン','oven',1),HT('ソースパン','sauce',0),HT('コーヒーメーカー','coffee',0)],
+  menu:[['steak',1],['nicoise',1],['coffee',2],['brulee',3],['onionsoup',4],['fish',5]]},
+ {name:'世界料理王決定戦 予選',sub:'世界大会',days:6,wall:'#f6e6b8',wall2:'#f0dca0',sign:'#b8862a',signA:'世界大会',signB:'予選',pantry:'ワールド材料棚',topName:'ワールド仕上げ台',
+  heat:WORLD,
+  menu:[['kebab',1],['lassi',1],['thaitea',2],['margherita',2],['gapao',3],['meatpasta',3],['mango',4],['pho',4],['carbonara',5],['cheese',5],['cappuccino',6],['tomyum',6]]},
+ {name:'世界料理王決定戦 準決勝',sub:'世界大会',days:6,wall:'#f6e6b8',wall2:'#f0dca0',sign:'#b8862a',signA:'世界大会',signB:'準決勝',flags:{group:1,stock:1},pantry:'ワールド材料棚',topName:'ワールド仕上げ台',
+  heat:WORLD,
+  menu:[['maguro',1],['salmon',1],['gyoza',2],['shumai',2],['burger',3],['taco',3],['ebi',4],['ramen',4],['fries',5],['subuta',5],['jasmine',6],['nachos',6]]},
+ {name:'世界料理王決定戦 決勝',sub:'世界大会',days:6,wall:'#f8e4a0',wall2:'#f2d888',sign:'#d9a020',signA:'世界大会',signB:'決勝',flags:{group:1,stock:1,course:1},pantry:'ワールド材料棚',topName:'ワールド仕上げ台',
+  heat:WORLD,
+  menu:[['steak',1],['nicoise',1],['onionsoup',2],['tempura',2],['curry',3],['caesar',3],['coffee',4],['fish',4],['brulee',5],['tiramisu',5]]},
 ];
+STAGES.forEach((s,i)=>{s.gimmick=GIM[i+1];s.flags=s.flags||{};s.pantry=s.pantry||'材料棚';s.topName=s.topName||'トッピング台'});
 const stg=()=>STAGES[G.stage-1];
+const fl=()=>stg().flags;
 const HEAT=['h1','h2','h3','h4'];
-const HEATCOL={h1:'#b9502a',h2:'#a8602a',h3:'#a03a4a',h4:'#2f7fa8'};
-const lvl=d=>d+(G.stage-1)*4;
-function dayConf(d){return{dur:90,interval:Math.max(3.4,8.2-.55*(lvl(d)-1))}}
-const curItems=d=>ITEMS.filter(it=>it.stage===G.stage&&it.day<=d);
-function calcGoal(d){
-  const c=dayConf(d),un=curItems(d);
-  const avg=un.reduce((s,i)=>s+i.price,0)/un.length;
-  const L=lvl(d),k=Math.min(un.length,L<=2?1:L<=4?1.4:L<=7?2:2.3);
-  return Math.max(500,Math.round(c.dur/c.interval*avg*k*.34/100)*100);
+const heatOf=id=>stg().heat[+id[1]-1];
+const stName=id=>id==='pantry'?stg().pantry:id==='top'?stg().topName:heatOf(id).n;
+const burnable=id=>id[0]==='h'&&!!heatOf(id).b;
+const menuAt=(stage,d)=>STAGES[stage-1].menu.filter(m=>m[1]<=d).map(m=>IT[m[0]]);
+const curItems=d=>menuAt(G.stage,d);
+const startIdOf=it=>it.from||it.id;
+const startIds=d=>{const r=[];curItems(d).forEach(it=>{const s=startIdOf(it);if(!r.includes(s))r.push(s)});return r};
+const lvlOf=(stage,d)=>d+(stage-1)*4;
+const lvl=d=>lvlOf(G.stage,d);
+function dayConfFor(stage,d){return{dur:90,interval:Math.max(3.8,8.2-.5*(lvlOf(stage,d)-1))}}
+const dayConf=d=>dayConfFor(G.stage,d);
+// 目標額 = その日に出してほしい皿数 × メニューの平均価格。後半のステージほど工程が多いので、日ごとの伸びはゆるやかに
+function goalFor(stage,d){
+  const un=menuAt(stage,d),avg=un.reduce((s,i)=>s+i.price,0)/un.length;
+  const dishes=Math.min(16,3.5+1.3*(d-1)+(stage-1)*.6);
+  return Math.max(500,Math.round(dishes*avg/100)*100);
 }
-// ステージ1の10日間で買えるのは全体の1〜2割程度になるよう、費用は高めに設定
+const calcGoal=d=>goalFor(G.stage,d);
+// 固定費(家賃・人件費・光熱費)は、そのお店の標準的な売上から決める。家賃は月額と日割りで表示する
+const finCache={};
+function finOf(stage){
+  stage=stage||G.stage;
+  if(finCache[stage])return finCache[stage];
+  const n=STAGES[stage-1].days;let sum=0;for(let d=1;d<=n;d++)sum+=goalFor(stage,d);
+  const avg=sum/n,fixed=avg*1.15;
+  const rent=Math.round(fixed*.55/10)*10;
+  return finCache[stage]={avg,rent,monthly:Math.round(rent*30/10000)*10000,hours:Math.round(fixed*.30/1100*2)/2,
+    elec:Math.round(fixed*.06/10)*10,gas:Math.round(fixed*.05/10)*10,water:Math.round(fixed*.01/10)*10,misc:Math.round(fixed*.03/10)*10,
+    prize:stage>=STAGES.length?0:Math.round(avg*2.2/5000)*5000};
+}
+// お店の強化。解放は「そのステージで営業を終えた日数」で段階的に。費用は高めで、全部は買えない
 const UPS=[
  {id:'tray', name:'お盆',             desc:'持てる料理の数 +1（最大4つ）',   cost:[2500,5000],need:[2,5]},
  {id:'walk', name:'ダッシュ特訓',     desc:'歩くスピード +20%',              cost:[1500,3000,5000],need:[3,6,9]},
@@ -536,46 +623,38 @@ const UPS=[
 ];
 const QMAX=8;
 const handsMax=()=>2+(G.up.tray||0);
+const SLOT_X=[104,196,288,380];
+// 調理場の配置（材料棚・トッピング台・調理場×4）
+const LAYOUT=[{id:'pantry',x:0,w:150},{id:'top',x:150,w:66},{id:'h1',x:216,w:66},{id:'h2',x:282,w:66},{id:'h3',x:348,w:66},{id:'h4',x:414,w:66}];
+const STX={};LAYOUT.forEach(l=>STX[l.id]=l.x+l.w/2);STX.trash=428;
+
+/* ---------- シーン管理 ---------- */
+const SC={};let scene='title',T=0;
 /* ---------- 料理ごとのアップグレード ----------
-   Lv1・Lv2・Lv3 の順に購入。効果: s=作業時間短縮 / p=値段アップ / b=作業台+1 / a=仕上げ工程の自動化
-   工程のタイプで効果を変える: A(調理+仕上げ) / B(調理のみ) / C(仕上げのみ) */
-const UP_TXT={
- kebab:[['業務用グリル','強火の遠赤外線グリルに入れ替え。肉汁を閉じこめて、焼き時間も短く。'],['作業台をもう1台','グリルの横に専用の台を増設。ケバブを2本同時に仕込める。'],['全自動ソースマシン','野菜とソースを機械がのせてくれる。仕上げの工程がいらなくなる！']],
+   効果: s=作業時間短縮 / p=値段アップ / b=その調理場に作業台(枠)+1 / a=仕上げ工程の自動化
+   工程のタイプで効果を変える: A(調理+仕上げ) / B(調理のみ) / C(仕上げのみ) / D(その他) */
+const UP_TXT={ // ステージ1の料理は、料理ごとのフレーバーテキスト。それ以外はテンプレートから作る
+ kebab:[['業務用グリル','強火の遠赤外線グリルに入れ替え。肉汁を閉じこめて、焼き時間も短く。'],['作業台をもう1台','グリルの横に台を増設。ケバブをもう1本、同時に仕込める。'],['全自動ソースマシン','野菜とソースを機械がのせてくれる。仕上げの工程がいらなくなる！']],
  salad:[['ブランド野菜','朝採れの高級野菜に変更。もりつけも映えて、値段もアップ。'],['高速カッター','野菜カットが超高速に。トッピング台での作業が短縮。'],['自動サラダ盛りマシン','お皿をとるだけで完成！ 仕上げの工程がいらなくなる。']],
- lassi:[['業務用ミキサー','モーターがパワーアップして、あっという間に混ざる。'],['作業台をもう1台','ミキサーをもう1台増設。ラッシーを同時に2杯作れる。'],['全自動ヨーグルトサーバー','ボタン一つで注ぎ分け。さらに速く、プレミアム価格に。']],
- naan:[['石窯タンドール','石窯に入れ替えて、焼き時間が短縮。香りもアップ。'],['作業台をもう1台','窯口を増設。ナンを2枚同時に焼ける。'],['熟練職人の手さばき','生地さばきが超高速に。さらに速く、ふっくら高級ナンに。']],
- curry:[['銅の大鍋','熱がまんべんなく伝わる銅鍋。コクも深まる。'],['作業台をもう1台','コンロをもう1口。バターチキンを並行して煮こめる。'],['自動トッピングロボ','クリームとパクチーを自動でトッピング。仕上げの工程が不要に！']],
- mango:[['高性能ミキサー','なめらか仕上げのプロ用ミキサーに交換。'],['作業台をもう1台','ミキサーをもう1台。マンゴーラッシーを同時に2杯。'],['自動マンゴーのせ機','熟れたマンゴーを自動でカット＆トッピング。仕上げが不要に！']],
- tandoori:[['炭火グリル','香ばしい炭火で一気に焼き上げる。'],['作業台をもう1台','焼き台を増設して、2羽まとめて焼ける。'],['自動薬味カッター','レモンと玉ねぎを自動でそえてくれる。仕上げが不要に！']],
- oj:[['コールドプレス搾り機','搾りたてを短時間で。'],['作業台をもう1台','搾り機を増設。2杯同時に搾れる。'],['全自動オレンジ搾り機','皮ごとセットするだけ。さらに速く、高級ジュースに。']],
- cheese:[['石窯タンドール','石窯に変えて、焼き時間が短縮。'],['作業台をもう1台','窯口を増やして、チーズナンを2枚同時に。'],['自動チーズシューター','チーズをのせる工程が不要に！ 生地から直接焼ける。']],
- keema:[['じっくり圧力鍋','圧力鍋で、煮込み時間を短縮。'],['作業台をもう1台','キーマ専用のコンロを増設。'],['自動たまごスライサー','ゆで卵とネギを自動でトッピング。仕上げが不要に！']],
- don:[['強火の中華コンロ','火力が上がり、お肉をさっと炒められる。'],['作業台をもう1台','丼専用のコンロを増設。'],['自動タレかけ機','野菜とソースを自動でのせてくれる。仕上げが不要に！']],
- gapao:[['業務用ウォック','強火で一気に炒め上げる、本格ウォック。'],['作業台をもう1台','ウォック台を増設。ガパオを2皿同時に。'],['自動目玉焼きマシン','目玉焼きとバジルを自動でのせる。仕上げが不要に！']],
- thaitea:[['高圧ティーサーバー','濃く出して、短時間で抽出。'],['作業台をもう1台','抽出サーバーを増設。'],['自動ミルクディスペンサー','ミルクを自動でそそぐ。仕上げが不要に！']],
- papaya:[['本場の青パパイヤ','現地直送で、歯ごたえ抜群。値段もアップ。'],['プロ用ミル','パパイヤを叩く作業が速くなる。'],['全自動サラダミキサー','材料をセットすれば自動で和える。工程が不要に！']],
- pho:[['寸胴スープ鍋','じっくり出汁をとった寸胴で、すぐ提供。'],['作業台をもう1台','スープ鍋を増設。'],['自動ハーブトッパー','ハーブとライムを自動で盛りつけ。仕上げが不要に！']],
- khaoman:[['大型蒸し器','蒸気をたっぷり使える大型蒸し器。'],['作業台をもう1台','蒸し器の段を増やして、同時に蒸せる。'],['自動タレかけ機','きゅうりとタレを自動でそえてくれる。仕上げが不要に！']],
- coconut:[['ココナッツ割り機','殻割りが一瞬に。'],['作業台をもう1台','ディスペンサーを増設。'],['冷凍ココナッツサーバー','キンキンに冷えた特別仕様。さらに速く、高級価格に。']],
- tomyum:[['香辛料ミル','スパイスを挽きたてで。コクが増す。'],['作業台をもう1台','専用のコンロを増設。'],['自動エビトッパー','エビとパクチーを自動でのせる。仕上げが不要に！']],
- chahan:[['鉄の中華鍋','鍋ふりが軽くなり、パラパラに。'],['作業台をもう1台','コンロを増設。'],['自動トッピングマシン','エビとネギを自動でトッピング。仕上げが不要に！']],
- margherita:[['ナポリ式薪窯','高温で一気に焼き上げて、短時間で完成。'],['作業台をもう1台','窯をもう1つ。2枚同時に焼ける。'],['自動トマトチーズ機','トマトとチーズを自動でのせる。仕上げが不要に！']],
- cappuccino:[['業務用エスプレッソマシン','圧力が安定して、抽出が早い。'],['作業台をもう1台','マシンをもう1台増設。'],['自動ミルクフォーマー','ミルクの泡を自動でのせる。仕上げが不要に！']],
- caesar:[['パルミジャーノ増量','本格チーズで、高級感アップ。'],['クルトンメーカー','クルトンが自動で焼きたてに。作業が短縮。'],['自動シーザー盛りマシン','お皿をとるだけで完成！ 仕上げの工程がいらなくなる。']],
- meatpasta:[['大型ゆで麺機','ゆで上がりが早く、均一に。'],['作業台をもう1台','ゆでかごを増設。'],['自動ソースかけ機','ミートソースを自動でかける。仕上げが不要に！']],
- carbonara:[['業務用ゆで麺機','ゆで時間を短縮。'],['作業台をもう1台','ゆでかごを増設。'],['自動ベーコンソース機','ソースとベーコンを自動でのせる。仕上げが不要に！']],
- tiramisu:[['マスカルポーネ増量','濃厚クリームで、高級感アップ。'],['高速クリーム絞り機','クリームの絞りが速くなる。'],['自動デザートマシン','スポンジをとるだけで完成！ 仕上げの工程がいらなくなる。']],
- minestrone:[['圧力スープ鍋','野菜の旨みを、短時間で引き出す。'],['作業台をもう1台','スープ鍋を増設。'],['自動チーズおろし器','チーズを自動でふりかける。仕上げが不要に！']],
- pizza4:[['石窯ピザオーブン','焼き上がりが早くなる。'],['作業台をもう1台','オーブンを増設。'],['自動4種チーズ機','4種のチーズを自動でのせる。仕上げが不要に！']],
+ lassi:[['業務用ミキサー','モーターがパワーアップして、あっという間に混ざる。'],['作業台をもう1台','サーバーの注ぎ口を増設。ドリンクを同時に作れる数が増える。'],['全自動ヨーグルトサーバー','ボタン一つで注ぎ分け。さらに速く、プレミアム価格に。']],
+ naan:[['石窯タンドール','石窯に入れ替えて、焼き時間が短縮。香りもアップ。'],['作業台をもう1台','窯口を増設。ナンを同時に焼ける数が増える。'],['熟練職人の手さばき','生地さばきが超高速に。さらに速く、ふっくら高級ナンに。']],
+ curry:[['銅の大鍋','熱がまんべんなく伝わる銅鍋。コクも深まる。'],['作業台をもう1台','コンロをもう1口。煮こめる数が増える。'],['自動トッピングロボ','クリームとパクチーを自動でトッピング。仕上げの工程が不要に！']],
+ mango:[['高性能ミキサー','なめらか仕上げのプロ用ミキサーに交換。'],['作業台をもう1台','サーバーの注ぎ口を増設。同時に作れる数が増える。'],['自動マンゴーのせ機','熟れたマンゴーを自動でカット＆トッピング。仕上げが不要に！']],
+ tandoori:[['炭火グリル','香ばしい炭火で一気に焼き上げる。'],['作業台をもう1台','焼き台を増設して、まとめて焼ける。'],['自動薬味カッター','レモンと玉ねぎを自動でそえてくれる。仕上げが不要に！']],
+ oj:[['コールドプレス搾り機','搾りたてを短時間で。'],['作業台をもう1台','搾り口を増設。同時に作れる数が増える。'],['全自動オレンジ搾り機','皮ごとセットするだけ。さらに速く、高級ジュースに。']],
+ cheese:[['石窯タンドール','石窯に変えて、焼き時間が短縮。'],['作業台をもう1台','窯口を増やして、同時に焼ける枚数アップ。'],['自動チーズシューター','チーズをのせる工程が不要に！ 生地から直接焼ける。']],
+ keema:[['じっくり圧力鍋','圧力鍋で、煮込み時間を短縮。'],['作業台をもう1台','コンロを増設。同時に煮こめる数が増える。'],['自動たまごスライサー','ゆで卵とネギを自動でトッピング。仕上げが不要に！']],
+ don:[['強火の中華コンロ','火力が上がり、お肉をさっと炒められる。'],['作業台をもう1台','コンロを増設。同時に炒められる数が増える。'],['自動タレかけ機','野菜とソースを自動でのせてくれる。仕上げが不要に！']],
 };
 function upKind(it){
-  const cook=it.steps.some(s=>s.k==='cook'),top=it.steps.some(s=>s.k==='top');
-  return cook&&top?'A':cook?'B':'C';
+  const cook=it.steps.some(s=>s.k==='cook'),top=it.steps.some(s=>s.k==='top'&&!s.choice);
+  return cook&&top?'A':cook?'B':top?'C':'D';
 }
 const UP_EFF={
   A:[{s:.15,p:.05},{b:1},{a:1,p:.10}],
   B:[{s:.15,p:.05},{b:1},{s:.25,p:.15}],
   C:[{p:.10},{s:.35},{a:1,p:.10}],
+  D:[{p:.10},{s:.30},{s:.20,p:.15}],
 };
 function effText(e){
   const t=[];
@@ -585,29 +664,32 @@ function effText(e){
   if(e.p)t.push('値段 +'+Math.round(e.p*100)+'%');
   return t.join(' / ');
 }
+function upTpl(it,i,kind){
+  const cs=it.steps.find(s=>s.k==='cook'),sn=cs?stName(cs.st):'';
+  if(i===0)return cs?['業務用'+sn,'火力と性能がアップ。'+it.name+'の調理が速くなる。']:['厳選素材','いい素材で、高級感アップ。値段も上がる。'];
+  if(i===1)return cs?['作業台をもう1台',sn+'に台を増設。同時に作れる数が増える。']:['高速カッター','もりつけの作業が速くなる。'];
+  return (kind==='A'||kind==='C')?['自動トッピングマシン',it.name+'の仕上げを機械が自動でやってくれる。仕上げの工程が不要に！']:['熟練の手さばき','腕前が上がって、さらに速く、高級な仕上がりに。'];
+}
+function upText(it,i){
+  const kind=upKind(it),t=UP_TXT[it.id];
+  if(t&&t[i]&&!(i===2&&(kind==='B'||kind==='D')&&/不要|いらなく/.test(t[i][1])))return t[i];
+  return upTpl(it,i,kind);
+}
 const ilv=id=>(G.itemUp&&G.itemUp[id])||0;
 // 購入済みレベルの効果を合計する
 function ueff(id){
-  const it=IT[id],lv=ilv(id),e={s:0,p:0,b:0,a:0},tbl=UP_EFF[upKind(it)];
+  const it=IT[id],lv=ilv(id),e={s:0,p:0,b:0,a:0};
+  if(!it||it.base)return e;
+  const tbl=UP_EFF[upKind(it)];
   for(let i=0;i<lv;i++){const x=tbl[i];e.s+=x.s||0;e.p+=x.p||0;e.b+=x.b||0;if(x.a)e.a=1}
   return e;
 }
-// 自動化すると、トッピング工程が不要になる
-const stepsOf=it=>ueff(it.id).a?it.steps.filter(s=>s.k!=='top'):it.steps;
-const benchOf=id=>1+ueff(id).b;
+// 自動化すると、トッピング工程(選ぶ工程は除く)が不要になる
+const stepsOf=it=>ueff(it.id).a?it.steps.filter(s=>s.k!=='top'||s.choice):it.steps;
 const iprice=it=>Math.round(it.price*(1+ueff(it.id).p)/10)*10;
 const wasteCost=it=>Math.round(iprice(it)*.4/10)*10;
 const itemUpCost=(it,lv)=>Math.round(it.price*[1.2,2.4,4][lv]/100)*100;
-const SLOT_X=[104,196,288,380];
-// 調理場の配置（材料棚・トッピング台・調理場×4）
-const LAYOUT=[{id:'pantry',x:0,w:150},{id:'top',x:150,w:66},{id:'h1',x:216,w:66},{id:'h2',x:282,w:66},{id:'h3',x:348,w:66},{id:'h4',x:414,w:66}];
-const STX={};LAYOUT.forEach(l=>STX[l.id]=l.x+l.w/2);STX.trash=428;
-const stName=id=>id==='pantry'?'材料棚':id==='top'?'トッピング台':stg().heat[+id[1]-1];
-const burnable=id=>id[0]==='h'&&!!stg().burn[+id[1]-1];
-
-/* ---------- シーン管理 ---------- */
-const SC={};let scene='title',T=0;
-
+const lab=stp=>(stp.label||'').replace('{S}',stp.st?stName(stp.st):'');
 /* ===== 背景 ===== */
 function drawBG(type){
   if(type==='night'){
@@ -651,8 +733,71 @@ function drawChar(k,x,feet,s,opt){
 /* ===== ストーリー ===== */
 let S=null;
 function startStory(pages,done){S={pages,i:0,t:0,done};scene='story'}
+const mu=(stage,d)=>STAGES[stage-1].menu.filter(m=>m[1]===d).map(m=>m[0]);
+// 会話ページの部品
+const K=(text,o)=>({bg:'shop',who:'ケンタ',text,chars:[{k:'boy',x:150,o:Object.assign({joy:true,talk:true},o||{})}]});
+const N=(text,bg)=>({bg:bg||'shop',who:'',text,chars:[]});
+const J=(text)=>({bg:'win',who:'審査員',text,chars:[{k:'boy',x:150,o:{joy:true}}]});
+const D=(text,sick)=>({bg:'win',who:'お父さん',text,chars:[{k:'boy',x:140,o:{joy:true}},{k:'dad',x:340,o:{ok:true,talk:true}}]});
+const NIGHT=(text)=>({bg:'night',who:'ケンタ',text,chars:[{k:'boy',x:240,o:{talk:true}}]});
+const SDAYS={
+ 2:['まずは屋台で一番人気だったガパオライス！\nごはんをもって、ウォックで炒めて、トッピング台で「ガパオ」のボタンを押そう！',
+    '暑い日には、甘くて冷たいタイティー。パパイヤサラダも出そう。\nグラスをとって、サーバーで味のボタンを押すんだ！',
+    '同じ炒めごはんでも、のせるものでチャーハンに変わるよ。\nトッピング台のボタンで、「エビチャーハン」を選ぼう！',
+    'ベトナムで教わったフォー。\n麺をスープ鍋で煮て、トッピング台で「フォー」か「トムヤム」を選ぶんだ！',
+    'しっとり蒸し鶏のカオマンガイと、ココナッツジュースもおすすめだ。',
+    '明日は「アジア料理グランプリ」の審査員が来る日。\nトムヤムも全力でいくぞ！'],
+ 3:['ピザは、先にトッピングしてから、ピザ窯で焼くんだ。\n順番に気をつけよう！',
+    'おいしいエスプレッソ。\nカップをとって、エスプレッソのボタンを押そう。',
+    'カプチーノは、エスプレッソにミルクフォームをのせて。\nシーザーサラダも出すよ！',
+    'パスタは、パスタ鍋でゆでてから、ソース鍋へ。\nそこでソースを選んで和えるんだ（2段階調理）！',
+    '濃厚カルボナーラも同じ流れ。\n食後にティラミスはいかが？',
+    'いよいよ最終日。ミネストローネと4種チーズピザも出すぞ！'],
+ 4:['しゃりは、炊飯器でまとめて炊く。1回で3つぶん！\n取り出したら、トッピング台でネタを選んでにぎろう。',
+    'サーモンと、お茶も用意しよう。',
+    'さくっと揚がった天ぷら。揚げすぎには気をつけて！',
+    'ぷりぷりのえびも、にぎりに加えよう。',
+    'あったかいきつねうどんも、おすすめだ！',
+    '審査員がやってくる日。\nありったけのにぎりで勝負だ！'],
+ 5:['団体のお客さんには、料理をいっぺんにたくさんお出ししよう。\nたくさん頼まれるけど、たくさん稼げるぞ！',
+    '焼売とジャスミン茶も出そう。せいろで蒸すんだ。',
+    '本格的な麻婆豆腐。寸胴でじっくり煮こむよ！',
+    '中華のしめは、やっぱりラーメン！',
+    '甘酸っぱい酢豚。団体さんにも大人気だ！',
+    '明日は、中華料理大会の審査員が来る。\n団体さんも大歓迎だ！'],
+ 6:['アメリカンダイナーは、材料の在庫に限りがあるぞ。\n切れたら、棚の「＋」ボタンで補充しよう！',
+    'ポテトとコーラは、ダイナーの定番だ。',
+    'ホットドッグ！ ソーセージをグリドルで焼こう。',
+    'メキシカンのタコスも仲間に入れよう！',
+    'ナチョスで、さらににぎやかに。',
+    '明日は、バーベキュー大会の審査員が来る日。在庫は多めに補充しておこう！'],
+ 7:['フランス料理は「コース」。前菜→メイン→デザートの順に出すよ。\nふきだしの数字のとおりにね！',
+    'コーヒーで、コースをしめくくろう。',
+    'クレームブリュレ。表面をパリッと焼いて固めるんだ。',
+    'オニオングラタンスープは、煮こんで、チーズをのせて、窯で焼き色をつける。',
+    '白身魚のムニエルも、メインに加えよう！',
+    'ついに最終日。ここを乗りこえれば、第1部は完結だ！'],
+ 8:['ここは世界大会の予選会場。\n調理場の名前は変わっても、やり方はこれまでと同じだ！',
+    'ドリンクも、ピザも、同じ要領でどんどん作ろう。',
+    'ガパオにミートソース。ボタンで選ぶのも、お手のものだ！',
+    'マンゴーラッシーとフォーも出番だ。',
+    'カルボナーラとチーズナン！ 腕の見せどころだ。',
+    '予選の最終日。トムヤムとカプチーノで決めるぞ！'],
+ 9:['準決勝！ まとめ炊き、団体のお客さん、在庫切れ…全部くるぞ！',
+    '餃子と焼売、団体さんにお出ししよう。',
+    'バーガーとタコス。在庫に気をつけて！',
+    'えびとラーメンも追加だ。',
+    'ポテトと酢豚で、準決勝もあと少し。',
+    '準決勝の最終日。ジャスミン茶とナチョスで締めくくろう！'],
+ 10:['決勝！ コースの順番、団体さん、在庫切れ…ぜんぶだ！\nここまで磨いた腕の見せどころだ！',
+    'オニオングラタンと天ぷら。前菜とメインを同時にこなそう。',
+    'カレーとシーザーサラダ。インドとイタリアの味が決勝で出会う！',
+    'コーヒーと白身魚。世界の審査員が、じっと見ている…。',
+    'ブリュレとティラミス。デザートまで、気をぬかないぞ！',
+    '決勝の最終日。ケンタ、最後までやりきるんだ！'],
+};
 function dayPages(d){
-  const un=ITEMS.filter(i=>i.stage===G.stage&&i.day===d).map(i=>i.id);
+  const un=mu(G.stage,d);
   const P=[];
   const say=(who,text,o)=>P.push(Object.assign({bg:'shop',who,text,chars:[{k:'boy',x:150,o:{joy:true}}],speaker:who},o||{}));
   const nar=(text,bg)=>P.push({bg:bg||'shop',who:'',text,chars:[]});
@@ -669,7 +814,8 @@ function dayPages(d){
       say('ケンタ','グリルに置きっぱなしだと焦げちゃうから気をつけて！\n両手がふさがったら、右はしのゴミ箱に捨てられるけど、お金が減っちゃう…！');break;
      case 3:
       P.push({bg:'hospital',who:'お父さん',text:'ケンタ、順調だそうだな。\nスパイスの香りで喉がかわくお客さんには、冷たいラッシーがおすすめだぞ。',chars:[{k:'dad',x:240,o:{bed:true,sick:true}}]});
-      unlock('ドリンク「ラッシー」が解禁！');break;
+      unlock('ドリンク「ラッシー」が解禁！');
+      say('ケンタ','ドリンクは、グラスをとって、サーバーのボタンで味を選ぶんだ。\n同じグラスから、いろんなドリンクが作れるよ！');break;
      case 4:
       say('ケンタ','ナンがないとカレー屋さんって言えないよね！\nタンドールに火を入れよう！');
       unlock('「プレーンナン」が解禁！ 焼きたてをどうぞ！');break;
@@ -693,48 +839,11 @@ function dayPages(d){
       unlock('最後の新メニュー！ 「キーマカレー」と「チキンケバブ丼」が解禁！');
       say('ケンタ','全部のメニューで、お客さんを笑顔にしてみせる！\nお父さん、見ててね！');break;
     }
-  }else if(G.stage===2){
-    switch(d){
-     case 1:
-      say('ケンタ','まずは屋台で一番人気だったガパオライス！\nごはんをもって、ウォックで炒めて、目玉焼きとバジルをのせるんだ！');
-      unlock('「ガパオライス」が解禁！');break;
-     case 2:
-      say('ケンタ','暑い日には、甘くて冷たいタイティーだね。\n注いだあとに、ミルクをそそぐのを忘れずに！');
-      unlock('「タイティー」が解禁！');break;
-     case 3:
-      nar('お店の評判がSNSで広がり、\n若いお客さんが増えてきた！');
-      unlock('シャキシャキ辛い「パパイヤサラダ」が解禁！');break;
-     case 4:
-      say('ケンタ','ベトナムで教わった、あっさりスープのフォー。\n麺にスープをそそいで、ハーブをたっぷりのせよう！');
-      unlock('「ベトナムフォー」が解禁！');break;
-     case 5:
-      say('ケンタ','しっとり蒸し鶏のカオマンガイに、\nココナッツジュースもおすすめしよう！');
-      unlock('「カオマンガイ」と「ココナッツジュース」が解禁！');break;
-     case 6:
-      P.push({bg:'night',who:'ケンタ',text:'明日は「アジア料理グランプリ」の審査員が来る日。\nここまで来たら、持てる力を全部出しきるだけだ！',chars:[{k:'boy',x:150,o:{}}]});
-      unlock('「トムヤムラーメン」と「エビチャーハン」が解禁！');break;
-    }
   }else{
-    switch(d){
-     case 1:
-      say('ケンタ','イタリアンの花形、マルゲリータ！\nピザは先にトッピングしてから、オーブンで焼くんだ。');
-      unlock('「マルゲリータ」が解禁！');break;
-     case 2:
-      say('ケンタ','おいしいエスプレッソとミルクの泡。\nカプチーノで、お客さんをほっとさせよう。');
-      unlock('「カプチーノ」が解禁！');break;
-     case 3:
-      nar('都会の一等地にあるお店には、\nおしゃれなお客さんがひっきりなしにやって来る！');
-      unlock('「シーザーサラダ」が解禁！');break;
-     case 4:
-      say('ケンタ','パスタはゆでたてが命！\nゆでてから、ソースをかけて仕上げよう！');
-      unlock('「ミートソースパスタ」が解禁！');break;
-     case 5:
-      say('ケンタ','濃厚カルボナーラと、仕上げのデザートも用意しよう。\nどれも手を抜けないぞ！');
-      unlock('「カルボナーラ」と「ティラミス」が解禁！');break;
-     case 6:
-      P.push({bg:'night',who:'ケンタ',text:'ついに、世界一を決める「世界料理王決定戦」の審査員が来店する日だ！\nインドで、アジアで、イタリアで学んだこと、全部ぶつけよう！',chars:[{k:'boy',x:150,o:{}}]});
-      unlock('最後の新メニュー！ 「ミネストローネ」と「4種チーズピザ」が解禁！');break;
-    }
+    if(d===1)nar('【ステージのポイント】\n'+stg().gimmick);
+    const t=SDAYS[G.stage][d-1];
+    if(t)say('ケンタ',t);
+    if(un.length)unlock(un.map(id=>'「'+IT[id].name+'」').join('と')+'が解禁！');
   }
   return P;
 }
@@ -751,38 +860,56 @@ const PROLOGUE=[
 // 各ステージのクリア後の話
 const STAGE_END={
  1:[
-  {bg:'shop',who:'',text:'審査の日。\nお店の前には、テレビカメラと大勢のお客さんが並んでいた。',chars:[]},
+  N('審査の日。\nお店の前には、テレビカメラと大勢のお客さんが並んでいた。'),
   {bg:'shop',who:'審査員',text:'ケバブの香ばしさ、ナンの焼き加減、カレーのコク…。\nそして何より、お客さんの笑顔！',chars:[{k:'boy',x:150,o:{}}]},
-  {bg:'win',who:'審査員',text:'文句なし！\n「ナマステ食堂」は、日本一のインド料理屋さんです！',chars:[{k:'boy',x:150,o:{joy:true}}]},
-  {bg:'win',who:'お父さん',text:'ケンタ…立派になったな。\nお前の作ったケバブが、日本でいちばんうまいぞ！',chars:[{k:'boy',x:140,o:{joy:true}},{k:'dad',x:340,o:{ok:true,talk:true}}]},
-  {bg:'win',who:'お父さん',text:'だがな、ケンタ。世界はもっと広いぞ。\nインドの味を知ったお前なら、どこまでだって行ける。',chars:[{k:'boy',x:140,o:{}},{k:'dad',x:340,o:{ok:true,talk:true}}]},
-  {bg:'win',who:'ケンタ',text:'世界…！ よーし、ぼく、もっといろんな味を勉強する！\nつぎの目標は、世界一の料理人だ！',chars:[{k:'boy',x:140,o:{joy:true,talk:true}},{k:'dad',x:340,o:{ok:true}}]},
+  J('文句なし！\n「ナマステ食堂」は、日本一のインド料理屋さんです！'),
+  D('ケンタ…立派になったな。\nお前の作ったケバブが、日本でいちばんうまいぞ！'),
+  D('だがな、ケンタ。世界はもっと広いぞ。\nインドの味を知ったお前なら、どこまでだって行ける。'),
+  K('世界…！ よーし、もっといろんな味を勉強する！\nつぎの目標は、世界一の料理人だ！'),
  ],
- 2:[
-  {bg:'win',who:'審査員',text:'ガパオのスパイス、フォーの優しいスープ、どれも本場の味だ！\n「サワディー亭」、アジア料理グランプリの優勝です！',chars:[{k:'boy',x:150,o:{joy:true}}]},
-  {bg:'win',who:'ケンタ',text:'やった…！ インドの次はアジア、制覇だ！\nでも、まだ世界一には足りない。',chars:[{k:'boy',x:150,o:{joy:true,talk:true}}]},
-  {bg:'night',who:'ケンタ',text:'つぎはヨーロッパ。\nイタリアの味を、とことん学んでくる！',chars:[{k:'boy',x:240,o:{talk:true}}]},
- ],
- 3:[
-  {bg:'win',who:'審査員',text:'インドのスパイス、アジアのハーブ、イタリアのコク…。\nすべてが一皿に調和している。この味は、世界一だ！',chars:[{k:'boy',x:150,o:{joy:true}}]},
-  {bg:'win',who:'お父さん',text:'ケンタ…ついに、世界一の料理人になったな。\nお前は、わしの誇りだ。',chars:[{k:'boy',x:140,o:{joy:true}},{k:'dad',x:340,o:{ok:true,talk:true}}]},
-  {bg:'win',who:'ケンタ',text:'ううん、お父さんのケバブがあったからだよ。\nそしてなにより、食べてくれたみんなのおかげ！',chars:[{k:'boy',x:140,o:{joy:true,talk:true}},{k:'dad',x:340,o:{ok:true}}]},
- ],
+ 2:[J('ガパオのスパイス、フォーの優しいスープ、どれも本場の味だ！\n「サワディー亭」、アジア料理グランプリの優勝です！'),K('やった…！ 次は、ヨーロッパの味に挑戦だ！'),NIGHT('つぎはイタリア。\nピザもパスタも、とことん学んでくる！')],
+ 3:[J('ピザの香ばしさ、パスタの絶妙なゆで加減！\n「トラットリア ケンタ」、イタリア料理コンテストの優勝です！'),K('やった…！ 欧州の味もマスターだ！\nそろそろ、日本の「おもてなし」を極めたいな。'),NIGHT('日本に帰って、寿司と天ぷらの修行だ！')],
+ 4:[J('しゃりの炊き加減、ネタの切れ味…。\n「すし処 ケンタ」、江戸前の名店です！'),K('やった…！\n次は、にぎやかな中華料理に挑戦するぞ！')],
+ 5:[J('湯気の向こうの本格の味に、団体のお客さんも大満足！\n「中華楼 ケンタ」、中華料理大会の優勝です！'),K('やった…！\n次は、海をわたってアメリカへ行こう！')],
+ 6:[J('ジューシーなバーガーに、サクサクのポテト。\n「ケンタ・ダイナー」、アメリカ料理大会の優勝です！'),K('やった…！\n最後の修行は、フランス料理だ！')],
+ 7:[J('前菜、メイン、デザート。完璧なコースでした。\n「ビストロ ケンタ」、フランス料理大会の優勝です！'),
+    J('インド、タイ・ベトナム、イタリア、和食、中華、アメリカ、フランス。\n7つの料理の頂点に、ケンタは立ちました！'),
+    D('ケンタ…ここまでよく頑張った。\nだが、まだ上がある。世界中の料理人が集まる「世界料理王決定戦」だ。'),
+    N('〜 第1部 完 〜','night'),
+    K('世界の頂点を目指して…最後の3戦に挑むぞ！')],
+ 8:[J('予選突破、おめでとう！\n各国の料理を自在に使いこなす腕前、見事です！'),K('やった…！ 次は準決勝だ！')],
+ 9:[J('まとめ炊きに団体のお客さん、在庫の管理まで。\n準決勝も、見事な腕前でした！'),K('やった…！ いよいよ、決勝だ！')],
+ 10:[J('インドのスパイス、アジアのハーブ、イタリアのコク、和の技、中華の火力、アメリカの豪快さ、フランスの気品。\nすべてが一皿に調和している。この味は、世界一です！'),
+    D('ケンタ…ついに、世界一の料理人になったな。\nお前は、わしの誇りだ。'),
+    K('ううん、お父さんのケバブがあったからだよ。\nそしてなにより、食べてくれたみんなのおかげ！')],
 };
 // 新しいお店を開く話
 const STAGE_PRO={
- 2:[
-  {bg:'shop',who:'',text:'日本一になってから半年。\n「ナマステ食堂」は、お父さんと仲間たちにまかせて、ケンタは旅に出た。',chars:[]},
-  {bg:'night',who:'ケンタ',text:'屋台のガパオ、湯気の立つフォー、甘いタイティー…。\n世界には、まだ知らない味がいっぱいある！',chars:[{k:'boy',x:240,o:{joy:true,talk:true}}]},
-  {bg:'shop',who:'ケンタ',text:'日本一の賞金で、少し広いお店を借りられた。\n家賃は上がるけど、その分お客さんも増えるはず！',chars:[{k:'boy',x:150,o:{talk:true}}]},
-  {bg:'shop',who:'ケンタ',text:'習った味をひっさげて、タイ・ベトナム料理のお店「サワディー亭」、オープンだ！',chars:[{k:'boy',x:150,o:{joy:true,talk:true}}]},
- ],
- 3:[
-  {bg:'shop',who:'',text:'アジア料理グランプリで優勝したケンタは、\nさらなる高みを目指して、イタリアに渡った。',chars:[]},
-  {bg:'night',who:'ケンタ',text:'ピザ窯の熱、挽きたてのエスプレッソ、手打ちのパスタ…。\nどれも、奥が深い！',chars:[{k:'boy',x:240,o:{talk:true}}]},
-  {bg:'shop',who:'ケンタ',text:'家賃は月42万円。アジア料理グランプリの賞金で、なんとかなる…はず！\nここで黒字にできるかは、機械の強化しだいだ。',chars:[{k:'boy',x:150,o:{talk:true}}]},
-  {bg:'shop',who:'ケンタ',text:'都会の一等地に、イタリアン「トラットリア ケンタ」をオープン！\n世界一への最終ステージだ！',chars:[{k:'boy',x:150,o:{joy:true,talk:true}}]},
- ],
+ 2:[N('日本一になってから半年。\n「ナマステ食堂」は、お父さんと仲間たちにまかせて、ケンタは旅に出た。'),
+    NIGHT('屋台のガパオ、湯気の立つフォー、甘いタイティー…。\n世界には、まだ知らない味がいっぱいある！'),
+    K('日本一の賞金で、少し広いお店を借りられた。\n家賃は上がるけど、その分お客さんも増えるはず！'),
+    K('習った味をひっさげて、タイ・ベトナム料理のお店「サワディー亭」、オープンだ！')],
+ 3:[N('アジア料理グランプリで優勝したケンタは、\nさらなる高みを目指して、イタリアに渡った。'),
+    NIGHT('ピザ窯の熱、挽きたてのエスプレッソ、手打ちのパスタ…。\nどれも、奥が深い！'),
+    K('都会の一等地に、イタリアン「トラットリア ケンタ」をオープン！')],
+ 4:[N('イタリアで磨いた腕をひっさげて、ケンタは日本に帰ってきた。'),
+    NIGHT('日本の味も、ちゃんと学びたい。\n寿司と天ぷらの名店で、修行の日々が始まった。'),
+    K('修行の成果を見せるときだ！\n「すし処 ケンタ」、オープン！')],
+ 5:[N('和食の修行を終えたケンタは、\nにぎやかな中華街の弟子入り先へ向かった。'),
+    NIGHT('強い火力、大きな中華鍋、たくさんの人で囲む円卓…。\n団体さんも、よろこんでもらえる味を！'),
+    K('中華の大御所に認められて、\n「中華楼 ケンタ」、オープン！')],
+ 6:[N('中華のあとは、海をわたってアメリカへ。\nケンタは、大きなダイナーで働きはじめた。'),
+    NIGHT('ハンバーガー、ポテト、コーラ…。\n豪快だけど、材料の管理が大事なんだ！'),
+    K('「ケンタ・ダイナー」、オープン！')],
+ 7:[N('最後の修行は、フランス。\n小さなビストロで、コース料理の作法を学んだ。'),
+    NIGHT('前菜、メイン、デザート。\n出す順番にも、おもてなしの心があるんだ。'),
+    K('「ビストロ ケンタ」、オープン！')],
+ 8:[N('世界中から、腕自慢の料理人が集まった。\nここは「世界料理王決定戦」の予選会場。'),
+    K('これまでの旅で覚えた料理が、全部ここで役に立つんだ！\nやるぞ！')],
+ 9:[N('予選を勝ちぬいたケンタは、準決勝の舞台へ。\n会場は、見たこともない熱気につつまれている。'),
+    K('団体のお客さんも、在庫の管理も、まかせて！')],
+ 10:[N('ついに、決勝戦。\n世界中の料理人の中から、ケンタは決勝の舞台に立った。'),
+    K('すべてのお店で学んだことを、ここで出しきる。\nお父さん、見ていてね！')],
 };
 SC.story={
   update(dt){S.t+=dt},
@@ -824,29 +951,40 @@ SC.story={
 
 /* ===== プレイ ===== */
 let P=null;
+// 調理場の枠は共通。基本2枠、その調理場の料理で「作業台+1」を買った分だけ増える（最大4枠）
+function capFor(h){
+  let n=2;
+  curItems(G.day).forEach(it=>{const cs=it.steps.find(s=>s.k==='cook');if(cs&&cs.st===h&&ueff(it.id).b)n++});
+  return Math.min(4,n);
+}
 function startPlay(){
   const c=dayConf(G.day);
-  P={day:G.day,conf:c,t:c.dur,money:0,goal:calcGoal(G.day),slots:[null,null,null,null],leaving:[],st:{},hands:[],q:[],
+  P={day:G.day,conf:c,t:c.dur,money:0,goal:calcGoal(G.day),slots:[null,null,null,null],leaving:[],st:{},hands:[],q:[],stock:{},
      boy:{x:240,state:'idle',act:0,pg:0},
-     spawn:.6,combo:0,maxCombo:0,served:0,lost:0,tips:0,floats:[],parts:[],msg:'',msgT:0,over:0,count:2.2,paused:false,burned:0,
+     spawn:.6,combo:0,maxCombo:0,served:0,lost:0,tips:0,floats:[],parts:[],msg:'',msgT:0,over:0,count:3,paused:false,burned:0,
      waste:0,closed:false,banner:0,dish:0,mat:0,cooks:{}};
-  // 調理場の作業台は料理ごと。購入した分だけ、その料理の専用台が並ぶ
-  HEAT.forEach(h=>P.st[h]=[]);
-  curItems(G.day).forEach(it=>{
-    const cs=it.steps.find(x=>x.k==='cook');
-    if(cs)for(let b=0;b<benchOf(it.id);b++)P.st[cs.st].push({item:it.id,dish:null,state:'idle',p:0,rt:0});
-  });
+  HEAT.forEach(h=>{P.st[h]=Array.from({length:capFor(h)},()=>({dish:null,state:'idle',p:0,rt:0,left:0}))});
+  if(fl().stock)startIds(G.day).forEach(id=>P.stock[id]=5);
   scene='play';
 }
 function say(m){P.msg=m;P.msgT=2.4}
 function float(x,y,s,col){P.floats.push({x,y,s,col:col||'#ffe066',t:0})}
 function sparkle(x,y,n,col){for(let i=0;i<n;i++)P.parts.push({x,y,vx:rnd(-50,50),vy:rnd(-80,-20),t:0,life:rnd(.4,.8),col:col||'#ffe066'})}
-function pickOrder(d){
+function pickOrder(d,forceN){
   const un=curItems(d),r=Math.random(),L=lvl(d);
+  if(forceN){const out=[];for(let i=0;i<forceN;i++)out.push(pick(un).id);return out} // 団体: 同じ料理を何個も頼む
+  if(fl().course){ // コース: 前菜・メイン・デザートから選ぶ
+    const by={1:[],2:[],3:[]};un.forEach(it=>by[it.course].push(it));
+    const cs=[1,2,3].filter(c=>by[c].length);
+    let n=L<=2?1:L<=5?(r<.5?2:1):(r<.2?1:r<.6?2:3);
+    n=Math.min(n,cs.length);
+    return cs.slice().sort(()=>Math.random()-.5).slice(0,n).sort((a,b)=>a-b).map(c=>pick(by[c]).id);
+  }
   let n=L<=2?1:L<=4?(r<.6?1:2):L<=7?(r<.25?1:r<.75?2:3):(r<.15?1:r<.5?2:3);
   n=Math.min(n,un.length);
   const pool=un.slice(),out=[];
-  const newest=un.filter(i=>i.day===d);
+  const todays=STAGES[G.stage-1].menu.filter(m=>m[1]===d).map(m=>m[0]);
+  const newest=un.filter(i=>todays.includes(i.id));
   if(newest.length&&Math.random()<.4){const it=pick(newest);out.push(it.id);pool.splice(pool.indexOf(it),1)}
   while(out.length<n){const it=pick(pool);out.push(it.id);pool.splice(pool.indexOf(it),1)}
   return out;
@@ -854,9 +992,13 @@ function pickOrder(d){
 function spawnCust(){
   const i=P.slots.findIndex(c=>!c);
   if(i<0)return false;
-  const need=pickOrder(P.day);
-  const pat=(34+need.length*8)*(1+.15*G.up.pat);
-  P.slots[i]={spr:pick(CUSTS),x:W+40,tx:SLOT_X[i],need:need.map(id=>({id,done:false})),pat,max:pat,state:'enter',bob:rnd(0,6),shake:0};
+  let ids,group=false;
+  if(fl().group&&P.day>=2&&curItems(P.day).length>=3&&Math.random()<.3){group=true;ids=pickOrder(P.day,4+Math.floor(Math.random()*3))}
+  else ids=pickOrder(P.day);
+  if(fl().course)ids.sort((a,b)=>IT[a].course-IT[b].course);
+  const need=ids.map(id=>({id,done:false,course:IT[id].course}));
+  const pat=(34+need.length*8+(group?10:0))*(1+.15*G.up.pat);
+  P.slots[i]={spr:pick(CUSTS),x:W+40,tx:SLOT_X[i],need,pat,max:pat,state:'enter',bob:rnd(0,6),shake:0,group,extra:group?[pick(CUSTS),pick(CUSTS)]:null};
   return true;
 }
 // 客が帰ったら、残りの客は先頭から詰めて並び直す
@@ -872,49 +1014,70 @@ function dismiss(c,mood){
 
 /* ---- 調理工程 ----
    料理は dish={id,step} として持ち運ぶ。step は「次にやる工程」の番号。
-   take(材料をとる) → cook(調理場に置く→できあがるまで待つ→取り出す) / top(トッピング台で仕上げ) の順。 */
+   ベース料理(base)は、choice の工程で「ボタンで選んだ料理」に変わる。 */
 const stepOf=d=>stepsOf(IT[d.id])[d.step];
-const dishDone=d=>d.step>=stepsOf(IT[d.id]).length;
+const dishDone=d=>!IT[d.id].base&&d.step>=stepsOf(IT[d.id]).length;
 function stepTime(stp,it){return stp.t*(1-.12*G.up.spd)*(1-ueff(it.id).s)}
-function freeSlot(st,id){return P.st[st].findIndex(s=>s.item===id&&!s.dish)}
-function heldNeed(st){
-  return P.hands.findIndex(d=>{const s=stepOf(d);return s&&(st==='top'?s.k==='top':(s.k==='cook'&&s.st===st))});
-}
 function heldNeeds(st){
   const r=[];
   P.hands.forEach((d,i)=>{const s=stepOf(d);if(s&&(st==='top'?s.k==='top':(s.k==='cook'&&s.st===st)))r.push(i)});
   return r;
 }
-function heatPlan(st){
-  const slots=P.st[st].map((s,k)=>({s,k})).filter(o=>o.s.dish);
-  const doneOf=list=>list.find(o=>o.s.state==='ready'||o.s.state==='burnt');
-  const canTake=o=>o.s.state==='burnt'||P.hands.length<handsMax();
-  const needs=heldNeeds(st);
-  if(needs.length){
-    for(const i of needs){const k=freeSlot(st,P.hands[i].id);if(k>=0)return{kind:'place',i,k}}
-    // 置きたい料理の台が全部使用中。できあがりを待って取り出し、その台に置く
-    const busy=slots.filter(o=>o.s.item===P.hands[needs[0]].id);
-    const done=doneOf(busy);
-    if(done)return canTake(done)?{kind:'collect',k:done.k,then:true}:{kind:'blocked'};
-    return busy.length?{kind:'wait'}:{kind:'none'};
-  }
-  const done=doneOf(slots);
-  if(done)return canTake(done)?{kind:'collect',k:done.k}:{kind:'blocked'};
-  return slots.length?{kind:'wait'}:{kind:'none'};
-}
-function placeDish(st,i,k){
-  const d=P.hands[i];P.hands.splice(i,1);
-  Object.assign(P.st[st][k],{dish:d,state:'cook',p:0,rt:0});
-  SFX.cook();P.cooks[st]=(P.cooks[st]||0)+1;
-}
-function collectSlot(st,k){
-  const sl=P.st[st][k];
-  if(sl.state==='burnt'){sl.dish=null;sl.state='idle';say('こげちゃった…すてました');SFX.bad();return}
-  sl.dish.step++;P.hands.push(sl.dish);sl.dish=null;sl.state='idle';SFX.take();
-}
 function wasteFor(d){return Math.round(wasteCost(IT[d.id])*(.35+.65*Math.min(1,d.step/stepsOf(IT[d.id]).length))/10)*10}
 function loseDish(it,x,label){
   const c=wasteCost(it);P.money-=c;P.waste+=c;float(x,126,label+' -'+yen(c),'#ff7a6a');
+}
+// トッピング台でやる作業の対象。ボタンを押したとき=そのボタンで選べるベース料理、押さないとき=選ばなくていい料理
+function pickable(i,variant){
+  const d=P.hands[i],it=IT[d.id],stp=stepOf(d);
+  return stp.choice?(!!variant&&it.base&&it.opts.includes(variant)):!variant;
+}
+function topCandidate(variant){return heldNeeds('top').find(i=>pickable(i,variant))}
+// 変数 undefined を -1 にそろえる
+const topIdx=v=>{const i=topCandidate(v);return i===undefined?-1:i};
+
+/* ---- 調理場の予約処理 ----
+   調理場をタップした予約は「その場で待って、できあがりを取り出し、次を置く」まで面倒を見る。
+   1) 置ける料理があって、空き枠があれば置く
+   2) 枠が全部使用中なら、できあがりを待つ → できあがったら自動で取り出して、次を置く
+   3) 置く料理がなければ、調理中の料理のできあがりを待って取り出す */
+function heatPlan(st,variant){
+  const slots=P.st[st];
+  const used=slots.map((s,k)=>({s,k})).filter(o=>o.s.dish);
+  const doneOf=list=>list.find(o=>o.s.state==='ready'||o.s.state==='burnt');
+  const canTake=o=>o.s.state==='burnt'||P.hands.length<handsMax();
+  const needs=heldNeeds(st);
+  const cand=needs.filter(i=>pickable(i,variant));
+  if(cand.length){
+    const k=slots.findIndex(s=>!s.dish);
+    if(k>=0)return{kind:'place',i:cand[0],k,variant};
+    const done=doneOf(used);
+    if(done)return canTake(done)?{kind:'collect',k:done.k,then:true}:{kind:'blocked'};
+    return used.length?{kind:'wait'}:{kind:'none'};
+  }
+  if(variant)return{kind:'nomatch'};
+  if(needs.length)return{kind:'choose'};
+  const done=doneOf(used);
+  if(done)return canTake(done)?{kind:'collect',k:done.k}:{kind:'blocked'};
+  return used.length?{kind:'wait'}:{kind:'none'};
+}
+function placeDish(st,i,k,variant){
+  const d=P.hands[i];P.hands.splice(i,1);
+  if(variant&&IT[d.id].base)d.id=variant; // ボタンで選んだ料理に決まる
+  const stp=stepOf(d);
+  Object.assign(P.st[st][k],{dish:d,state:'cook',p:0,rt:0,left:stp.batch||1});
+  SFX.cook();P.cooks[st]=(P.cooks[st]||0)+1;
+}
+// まとめ調理(batch)は、手に持てるだけ続けて取り出す
+function collectSlot(st,k){
+  const sl=P.st[st][k];
+  if(sl.state==='burnt'){sl.dish=null;sl.state='idle';sl.left=0;say('こげちゃった…すてました');SFX.bad();return}
+  const d=sl.dish;
+  while(sl.dish&&P.hands.length<handsMax()){
+    P.hands.push({id:d.id,step:d.step+1});sl.left--;
+    if(sl.left<=0){sl.dish=null;sl.state='idle';sl.left=0}
+  }
+  SFX.take();
 }
 
 /* ---- 予約キュー: タップした順に主人公が動く ---- */
@@ -924,7 +1087,7 @@ function enqueue(a){
   if(a.t==='trash'&&P.q.some(b=>b.t==='trash'))return;
   P.q.push(a);SFX.click();
 }
-function actX(a){return a.t==='serve'?a.c.x:a.t==='trash'?STX.trash:a.t==='start'?STX.pantry:STX[a.st]}
+function actX(a){return a.t==='serve'?a.c.x:a.t==='trash'?STX.trash:(a.t==='start'||a.t==='restock')?STX.pantry:STX[a.st]}
 function actValid(a){
   if(a.t==='take'){const sl=P.st[a.st][a.k];return !!(sl&&sl.dish)}
   if(a.t==='trash')return P.hands.length>0;
@@ -932,34 +1095,46 @@ function actValid(a){
   return true;
 }
 function actDur(a){
-  if(a.t==='step'&&a.st==='top'){const i=heldNeed('top');return i>=0?Math.max(.15,stepTime(stepOf(P.hands[i]),IT[P.hands[i].id])):.15}
+  if(a.t==='step'&&a.st==='top'){
+    const i=topIdx(a.variant);
+    if(i>=0){const d=P.hands[i],id=(IT[d.id].base&&a.variant)?a.variant:d.id;return Math.max(.15,stepTime(stepsOf(IT[id])[d.step],IT[id]))}
+    return .15;
+  }
+  if(a.t==='restock')return 1;
   return .25;
 }
+const MSG_PLAN={none:'ここでできる作業がないよ',blocked:'手がいっぱい！ 先に届けるか、ゴミ箱へ',choose:'どの料理にするか、ボタンで選んでね',nomatch:'そのボタンで作れる料理を持っていないよ'};
 function perform(a){
   const b=P.boy;
   if(a.t==='start'){
     if(P.hands.length>=handsMax()){say('手がいっぱい！ 先に届けるか、ゴミ箱へ');SFX.bad();return}
+    if(fl().stock){if((P.stock[a.item]||0)<=0){say('ざいこ切れ！「＋」で補充しよう');SFX.bad();return}P.stock[a.item]--}
     P.hands.push({id:a.item,step:1});SFX.take();
+  }else if(a.t==='restock'){
+    P.stock[a.item]=Math.min(10,(P.stock[a.item]||0)+5);SFX.coin();float(b.x,126,'＋補充','#9affb0');
+  }else if(a.t==='step'&&a.st==='top'){
+    const i=topIdx(a.variant);
+    if(i<0){say(a.variant?'そのトッピングで作れる料理がないよ':heldNeeds('top').length?'のせるものを、ボタンで選んでね':'ここでできる作業がないよ');SFX.bad();return}
+    const d=P.hands[i];if(a.variant&&IT[d.id].base)d.id=a.variant;
+    d.step++;SFX.ready();sparkle(b.x,125,5);
   }else if(a.t==='step'){
-    const i=heldNeed(a.st);
-    if(i<0){say('ここでできる作業がないよ');SFX.bad();return}
-    const d=P.hands[i];
-    if(a.st==='top'){d.step++;SFX.ready();sparkle(b.x,125,5);return}
-    const k=freeSlot(a.st,d.id);
-    if(k<0){say('この料理の作業台がいっぱい！');SFX.bad();return}
-    P.hands.splice(i,1);Object.assign(P.st[a.st][k],{dish:d,state:'cook',p:0,rt:0});
-    SFX.cook();P.cooks[a.st]=(P.cooks[a.st]||0)+1;
+    execHeat(a,heatPlan(a.st,a.variant));
   }else if(a.t==='take'){
-    const arr=P.st[a.st],s=arr[a.k];if(!s||!s.dish)return;
-    if(s.state==='burnt'){s.dish=null;s.state='idle';say('こげちゃった…すてました');SFX.bad();return}
-    if(P.hands.length>=handsMax()){say('手がいっぱい！ 先に届けるか、ゴミ箱へ');SFX.bad();return}
-    s.dish.step++;P.hands.push(s.dish);s.dish=null;s.state='idle';SFX.take();
+    const sl=P.st[a.st][a.k];if(!sl||!sl.dish)return;
+    if(sl.state!=='burnt'&&P.hands.length>=handsMax()){say('手がいっぱい！ 先に届けるか、ゴミ箱へ');SFX.bad();return}
+    collectSlot(a.st,a.k);
   }else if(a.t==='trash'){
     if(!P.hands.length)return;
     let loss=0;P.hands.forEach(d=>{loss+=wasteFor(d)});
     P.money-=loss;P.waste+=loss;P.hands=[];
     float(b.x,126,'すてた -'+yen(loss),'#ff7a6a');SFX.bad();
   }else if(a.t==='serve')serveCust(a.c);
+}
+// 調理場の予約を1回ぶん実行（テストからも使う）。予約を終えたら true
+function execHeat(a,plan){
+  if(plan.kind==='place'){placeDish(a.st,plan.i,plan.k,plan.variant);return true}
+  if(plan.kind==='collect'){collectSlot(a.st,plan.k);return !plan.then}
+  say(MSG_PLAN[plan.kind]||'');SFX.bad();return true;
 }
 function updateBoy(dt){
   const b=P.boy,q=P.q;
@@ -974,28 +1149,26 @@ function updateBoy(dt){
   if(a.t==='take'&&P.st[a.st][a.k].state==='cook'){b.state='wait';b.pg=0;return} // できあがるまで待つ
   let plan=null;
   if(a.t==='step'&&a.st!=='top'){
-    plan=heatPlan(a.st);
-    if(plan.kind==='wait'){b.state='wait';b.act=0;b.pg=0;return} // 台が空く・できあがるまで、その場で待つ
-    if(plan.kind==='none'||plan.kind==='blocked'){
-      q.shift();b.act=0;b.pg=0;
-      say(plan.kind==='blocked'?'手がいっぱい！ 先に届けるか、ゴミ箱へ':'ここでできる作業がないよ');SFX.bad();return;
-    }
+    plan=heatPlan(a.st,a.variant);
+    if(plan.kind==='wait'){b.state='wait';b.act=0;b.pg=0;return} // 枠が空く・できあがるまで、その場で待つ
+    if(!['place','collect'].includes(plan.kind)){q.shift();b.act=0;b.pg=0;execHeat(a,plan);return}
   }
   b.state='act';b.act+=dt;
   const dur=actDur(a);b.pg=Math.min(1,b.act/dur);
   if(b.act<dur)return;
   b.act=0;b.pg=0;
-  if(plan){
-    if(plan.kind==='place'){placeDish(a.st,plan.i,plan.k);q.shift()}
-    else{collectSlot(a.st,plan.k);if(!plan.then)q.shift()} // 置くために取り出したときは、予約は続ける
-  }else{q.shift();perform(a)}
+  if(plan){if(execHeat(a,plan))q.shift()}
+  else{q.shift();perform(a)}
 }
 function serveCust(c){
   if(!c||c.state!=='wait')return;
-  let n=0;
+  let n=0,blocked=false;
   const frac=Math.max(0,c.pat/c.max); // チップは渡す前の機嫌で決まる
+  const course=!!fl().course;
   c.need.forEach(nd=>{
     if(nd.done)return;
+    // コース: 前のコースが出ていないうちは、次のコースは出せない
+    if(course&&c.need.some(o=>!o.done&&o.course<nd.course)){if(P.hands.some(d=>d.id===nd.id&&dishDone(d)))blocked=true;return}
     const k=P.hands.findIndex(d=>d.id===nd.id&&dishDone(d));
     if(k>=0){
       P.hands.splice(k,1);nd.done=true;n++;sparkle(c.x,80,6);
@@ -1003,10 +1176,10 @@ function serveCust(c){
     }
   });
   if(n&&!c.need.every(nd=>nd.done))float(c.x,60,'♥ きげんUP','#ff9fd0');
-  if(!n){c.shake=.3;say('ほしいのは「できあがり」のふきだしの料理だよ！');SFX.bad();return}
+  if(!n){c.shake=.3;say(blocked?'コースの順番に出そう！ 前菜→メイン→デザート':'ほしいのは「できあがり」のふきだしの料理だよ！');SFX.bad();return}
   SFX.serve();
   if(c.need.every(nd=>nd.done)){
-    const base=c.need.reduce((s,nd)=>s+iprice(IT[nd.id]),0);
+    const base=c.need.reduce((s,nd)=>s+iprice(IT[nd.id]),0)*(c.group?1.25:1);
     const tip=Math.round(base*.5*frac*(1+.1*G.up.decor)/10)*10;
     P.combo++;P.maxCombo=Math.max(P.maxCombo,P.combo);
     const mult=1+Math.min(P.combo-1,8)*.05;
@@ -1014,6 +1187,7 @@ function serveCust(c){
     P.money+=gain;P.tips+=tip;P.served++;P.dish+=base;
     c.need.forEach(nd=>{P.mat+=Math.round(iprice(IT[nd.id])*IT[nd.id].cr)});
     float(c.x,60,'+'+yen(gain),'#ffe066');
+    if(c.group)float(c.x,48,'団体さま ×1.25','#ffd84a');
     if(tip>0)float(c.x,72,'チップ '+yen(tip),'#9affb0');
     if(P.combo>=2)float(c.x,84,'COMBO ×'+P.combo,'#ff9fd0');
     SFX.coin();sparkle(c.x,80,14,'#ffe066');
@@ -1035,7 +1209,7 @@ function updatePlay(dt){
     if(!s.dish)return;
     const it=IT[s.dish.id],stp=stepOf(s.dish);
     if(s.state==='cook'){s.p+=dt;if(s.p>=stepTime(stp,it)){s.state='ready';s.rt=0;SFX.ready()}}
-    else if(s.state==='ready'&&burnable(sid)){s.rt+=dt;if(s.rt>8){s.state='burnt';SFX.burn();P.burned++;loseDish(it,STX[sid],'こげた！')}}
+    else if(s.state==='ready'&&burnable(sid)&&!stp.batch){s.rt+=dt;if(s.rt>8){s.state='burnt';SFX.burn();P.burned++;loseDish(it,STX[sid],'こげた！')}}
   }));
   updateBoy(dt);
   // お客さん
@@ -1067,38 +1241,6 @@ function drawDish(d,x,y,size,extra){
   const h=Math.max(1,Math.round(16*f));
   ctx.drawImage(it.spr,0,16-h,16,h,Math.round(x),Math.round(y+(16-h)*sc),16*sc,h*sc);
 }
-function drawBubble(c){
-  const n=c.need.length,w=n*27+5,x=Math.round(c.x-w/2),y=20;
-  R(x+1,y+3,w,30,'#00000033');
-  box(x,y,w,30,'#fff','#3b2418');
-  R(Math.round(c.x)-3,y+30,6,2,'#fff');R(Math.round(c.x)-2,y+32,4,2,'#fff');
-  R(Math.round(c.x)-3,y+30,1,3,'#3b2418');R(Math.round(c.x)+2,y+30,1,3,'#3b2418');R(Math.round(c.x)-2,y+33,4,1,'#3b2418');
-  c.need.forEach((nd,i)=>{
-    const ix=x+4+i*27,it=IT[nd.id];
-    if(nd.done){ctx.globalAlpha=.3;spr(it.spr,ix,y+3,1.5);ctx.globalAlpha=1;txt('✓',ix+12,y+4,16,'#2fa04a','center','#fff')}
-    else spr(it.spr,ix,y+3,1.5);
-  });
-}
-
-function drawCust(c,i){
-  const wait=c.state==='wait';
-  const moving=Math.abs(c.tx-c.x)>1;
-  const bob=!moving&&wait?Math.round(Math.sin(T*4+c.bob)):Math.round(Math.sin(T*14)*1.5);
-  const x=c.x+(c.shake>0?Math.sin(T*60)*2:0);
-  let y=64+bob,a=1;
-  if(c.state==='leave'){a=Math.max(0,c.lt/.9);y-=Math.round((1-a)*10)}
-  ctx.globalAlpha=a;spr(c.spr,x-24,y,3);ctx.globalAlpha=1;
-  if(wait){
-    drawBubble(c);
-    const f=Math.max(0,c.pat/c.max);
-    R(Math.round(x)-20,57,40,4,'#2a1a1e');R(Math.round(x)-19,58,Math.round(38*f),2,f>.5?'#6fd36a':f>.25?'#ffd84a':'#ff5a4a');
-    if(f<.3&&Math.floor(T*4)%2)txt('!',Math.round(x)+18,y-4,12,'#ff3a2a','center','#fff');
-  }else if(c.state==='enter'){/* 歩き中 */}
-  else if(c.state==='leave'){
-    if(c.mood==='happy'){spr(HEART,x-3.5,y-8-(1-a)*14,1,a);spr(HEART,x+10,y-2-(1-a)*10,1,a)}
-    else txt('！！',x,y-8,10,'#ff3a2a','center','#fff');
-  }
-}
 function decor(level){
   if(level>=1){for(let x=0;x<W;x+=12){R(x,14,1,3,'#7a5a3a');const col=['#d9392b','#f2c14e','#3aa06a','#4aa3df'][(x/12)%4];R(x+1,16,8,2,col);R(x+2,18,6,2,col);R(x+3,20,4,2,col)}}
   if(level>=2){[[70],[458]].forEach(([x])=>{R(x,22,1,10,'#7a5a3a');R(x-4,32,9,12,'#d9392b');R(x-3,33,7,2,'#ffd84a');R(x-4,44,9,2,'#8e1f1f')})}
@@ -1111,15 +1253,52 @@ function drawTrash(x,y){
   for(let i=0;i<3;i++)R(x-6+i*6,y+9,2,14,'#7a8590');
   box(x-13,y+1,26,5,'#b6c0ca','#3b2418');R(x-4,y-2,8,3,'#59606a');
 }
+/* ---- お客さん・ふきだし ---- */
+function drawBubble(c){
+  const n=c.need.length,cx=Math.round(c.x),course=!!fl().course;
+  const big=n>3,sz=big?1:1.5,px=sz*16,stp=big?17:27;
+  const cols=big?3:n,rows=Math.ceil(n/cols);
+  const w=cols*stp+5,h=big?rows*17+5:30,x=Math.round(c.x-w/2),y=50-h;
+  R(x+1,y+3,w,h,'#00000033');
+  box(x,y,w,h,'#fff','#3b2418');
+  R(cx-3,y+h,6,2,'#fff');R(cx-2,y+h+2,4,2,'#fff');
+  R(cx-3,y+h,1,3,'#3b2418');R(cx+2,y+h,1,3,'#3b2418');R(cx-2,y+h+3,4,1,'#3b2418');
+  c.need.forEach((nd,i)=>{
+    const ix=x+4+(i%cols)*stp,iy=y+3+Math.floor(i/cols)*(big?17:0),it=IT[nd.id];
+    if(nd.done){ctx.globalAlpha=.3;spr(it.spr,ix,iy,sz);ctx.globalAlpha=1;txt('✓',ix+px/2,iy+(big?0:2),big?12:16,'#2fa04a','center','#fff')}
+    else spr(it.spr,ix,iy,sz);
+    if(course&&!nd.done){box(ix-1,iy-1,7,8,'#ffd84a','#3b2418');txt(String(nd.course),ix+2.5,iy,6,'#3b2418','center')}
+  });
+}
+function drawCust(c){
+  const wait=c.state==='wait';
+  const moving=Math.abs(c.tx-c.x)>1;
+  const bob=!moving&&wait?Math.round(Math.sin(T*4+c.bob)):Math.round(Math.sin(T*14)*1.5);
+  const x=c.x+(c.shake>0?Math.sin(T*60)*2:0);
+  let y=64+bob,a=1;
+  if(c.state==='leave'){a=Math.max(0,c.lt/.9);y-=Math.round((1-a)*10)}
+  ctx.globalAlpha=a;
+  if(c.extra){spr(c.extra[0],x-46,y+5,3);spr(c.extra[1],x+22,y+5,3)} // 団体さま
+  spr(c.spr,x-24,y,3);ctx.globalAlpha=1;
+  if(wait){
+    drawBubble(c);
+    const f=Math.max(0,c.pat/c.max);
+    R(Math.round(x)-20,57,40,4,'#2a1a1e');R(Math.round(x)-19,58,Math.round(38*f),2,f>.5?'#6fd36a':f>.25?'#ffd84a':'#ff5a4a');
+    if(c.group)txt('団体',Math.round(x)-24,45,7,'#d9392b','center','#fff');
+    if(f<.3&&Math.floor(T*4)%2)txt('!',Math.round(x)+18,y-4,12,'#ff3a2a','center','#fff');
+  }else if(c.state==='leave'){
+    if(c.mood==='happy'){spr(HEART,x-3.5,y-8-(1-a)*14,1,a);spr(HEART,x+10,y-2-(1-a)*10,1,a)}
+    else txt('！！',x,y-8,10,'#ff3a2a','center','#fff');
+  }
+}
 function hintText(){
   if(P.msgT>0)return P.msg;
   if(P.closed)return '閉店！ のこりのお客さんに届けよう';
-  // 持っている料理の「つぎの工程」を教える
   if(P.hands.length){
-    return P.hands.slice(0,2).map(d=>{const it=IT[d.id];return it.name+'→'+(dishDone(d)?'できあがり！客へ':stepOf(d).label)}).join('\n');
+    return P.hands.slice(0,2).map(d=>{const it=IT[d.id];return it.name+'→'+(dishDone(d)?'できあがり！客へ':lab(stepOf(d)))}).join('\n');
   }
   if(G.stage===1&&P.day<=2){
-    if(Object.values(P.st).some(a=>a.some(s=>s&&s.state==='ready')))return 'できた料理をタップで取り出す！';
+    if(P.st.h1.some(s=>s.state==='ready'))return 'できた料理をタップで取り出す！';
     return 'ふきだしの料理を材料棚でタップ！';
   }
   return '';
@@ -1129,23 +1308,35 @@ function badge(x,y,list){
   const s=list.join('・'),w=s.length*5+6;
   box(Math.round(x),Math.round(y),w,10,'#ffd84a','#3b2418');txt(s,Math.round(x)+w/2,Math.round(y)+1,7,'#3b2418','center');
 }
-function drawAppliance(id,x0,w){
-  const cx=x0+w/2;
-  if(id==='h1'){ // コンロ・グリル・オーブン
-    box(cx-26,216,52,32,'#2a2a30','#1a1a20');
-    for(let i=0;i<6;i++)R(cx-23+i*8,219,3,26,'#4a4a52');
-    for(let i=0;i<5;i++){const h=4+Math.round(Math.abs(Math.sin(T*8+i))*5);R(cx-20+i*9,247-h,5,h,'#ff9a2a');R(cx-19+i*9,247-Math.max(2,h-3),3,Math.max(2,h-3),'#ffe066')}
-  }else if(id==='h2'){ // タンドール・蒸し器・パスタ鍋
-    box(cx-22,214,44,36,'#a85a2a','#3b2418');box(cx-12,228,24,22,'#1a0f0a','#000');
-    R(cx-22,218,44,3,'#c8793a');
-    for(let i=0;i<3;i++)R(cx-8+i*7,246-Math.round(Math.abs(Math.sin(T*7+i))*6),4,3+Math.round(Math.abs(Math.sin(T*7+i))*5),'#ff9a2a');
-  }else if(id==='h3'){ // おなべ・スープ鍋
-    box(cx-20,228,40,22,'#8a96a2','#3b2418');R(cx-23,224,46,5,'#b6c0ca');R(cx-4,220,8,4,'#59606a');
-    for(let i=0;i<3;i++){const yy=(T*14+i*9)%22;R(cx-10+i*9,214-yy+14,3,3,'#ffffff88')}
-  }else{ // ドリンクサーバー・エスプレッソマシン
-    box(cx-18,214,36,44,'#4a8ac0','#1e3a5a');R(cx-14,220,28,8,'#cfe6f8');R(cx-3,242,6,8,'#cfd6dc');R(cx-12,252,24,4,'#1e3a5a');
+
+/* ---- 調理場の道具（ステージごとに見た目が変わる） ---- */
+function drawApp(a,cx,y){
+  const flame=(x,yy,n,w)=>{for(let i=0;i<n;i++){const h=3+Math.round(Math.abs(Math.sin(T*8+i))*5);R(x+i*w,yy-h,w-1,h,'#ff9a2a');R(x+i*w+1,yy-Math.max(2,h-3),Math.max(1,w-3),Math.max(2,h-3),'#ffe066')}};
+  const steam=(x,yy,n)=>{for(let i=0;i<n;i++){const o=(T*14+i*9)%20;R(x+i*8,yy-o,3,3,'#ffffff88')}};
+  switch(a){
+   case 'grill': box(cx-26,y+10,52,30,'#2a2a30','#111');for(let i=0;i<6;i++)R(cx-23+i*8,y+13,3,24,'#555a62');flame(cx-20,y+42,5,9);break;
+   case 'griddle': R(cx-26,y+20,52,6,'#6a6a76');box(cx-28,y+26,56,16,'#2a2a30','#111');for(let i=0;i<5;i++){const o=Math.floor(T*6+i)%3;R(cx-20+i*10,y+17-o,2,2,'#ffe066')}flame(cx-18,y+44,5,8);break;
+   case 'tandoor': box(cx-22,y+4,44,38,'#a85a2a','#3b2418');R(cx-22,y+8,44,3,'#c8793a');box(cx-11,y+22,22,20,'#1a0f0a','#000');flame(cx-6,y+42,3,7);break;
+   case 'oven': box(cx-24,y+8,48,34,'#8a5a4a','#3b2418');R(cx-24,y+10,48,3,'#a8745a');box(cx-14,y+20,28,22,'#1a0f0a','#000');flame(cx-9,y+42,4,6);break;
+   case 'pot': box(cx-20,y+20,40,22,'#8a96a2','#3b2418');R(cx-23,y+17,46,5,'#b6c0ca');R(cx-4,y+13,8,4,'#59606a');steam(cx-10,y+14,3);break;
+   case 'stockpot': box(cx-17,y+8,34,34,'#9aa6b2','#3b2418');R(cx-20,y+14,4,6,'#59606a');R(cx+16,y+14,4,6,'#59606a');R(cx-19,y+6,38,4,'#c6d0da');steam(cx-10,y+4,3);break;
+   case 'pasta': box(cx-14,y+6,28,36,'#9aa6b2','#3b2418');R(cx-17,y+10,3,6,'#59606a');R(cx+14,y+10,3,6,'#59606a');R(cx-10,y+8,20,3,'#f6e08c');for(let i=0;i<3;i++)R(cx-8+i*6,y+12,1,10,'#d8a838');steam(cx-10,y+4,3);break;
+   case 'sauce': box(cx-18,y+26,32,14,'#a03a2a','#3b2418');R(cx+14,y+30,14,3,'#59606a');R(cx-14,y+24,26,3,'#e05a30');steam(cx-10,y+20,3);break;
+   case 'server': box(cx-18,y+4,36,44,'#4a8ac0','#1e3a5a');R(cx-14,y+10,28,8,'#cfe6f8');R(cx-12,y+24,4,4,'#e0302a');R(cx-2,y+24,4,4,'#f2c14e');R(cx+8,y+24,4,4,'#3aa06a');R(cx-3,y+34,6,8,'#cfd6dc');R(cx-12,y+44,24,4,'#1e3a5a');break;
+   case 'soda': box(cx-18,y+4,36,44,'#c9342a','#5a1a1a');R(cx-14,y+10,28,8,'#fff3d8');R(cx-12,y+24,4,4,'#4a2a1a');R(cx-2,y+24,4,4,'#f2c14e');R(cx+8,y+24,4,4,'#3aa06a');R(cx-14,y+44,28,3,'#59606a');break;
+   case 'espresso': box(cx-20,y+6,40,30,'#5a3a2a','#2a1a10');R(cx-14,y+12,28,6,'#8a6a4a');R(cx-3,y+26,6,8,'#cfd6dc');R(cx-6,y+38,12,8,'#fff');R(cx-5,y+38,10,2,'#3a2010');steam(cx-4,y+36,1);break;
+   case 'coffee': box(cx-16,y+6,32,40,'#3a3a42','#111');R(cx-12,y+12,24,6,'#8a8a96');R(cx-8,y+30,16,14,'#cfe6f4');R(cx-8,y+36,16,8,'#4a2a1a');steam(cx-4,y+26,1);break;
+   case 'wok': R(cx-24,y+22,48,10,'#2a2a30');R(cx-20,y+32,40,5,'#2a2a30');R(cx-14,y+37,28,3,'#2a2a30');R(cx+24,y+24,12,3,'#8a5a2a');for(let i=0;i<4;i++){const o=Math.floor(T*7+i*2)%4;R(cx-14+i*8,y+16-o,3,3,'#ff9a2a')}flame(cx-14,y+48,4,8);break;
+   case 'steamer': for(let i=0;i<3;i++){box(cx-18,y+30-i*10,36,10,'#d8a860','#8a5a2a');R(cx-18,y+34-i*10,36,1,'#a8743a')}R(cx-20,y+6,40,4,'#c8924a');steam(cx-10,y+4,3);break;
+   case 'rice': box(cx-20,y+12,40,30,'#f2f2f2','#59606a');R(cx-20,y+8,40,8,'#d8dde4');R(cx-8,y+24,16,8,'#59606a');R(cx+10,y+10,6,3,'#e0302a');steam(cx-4,y+6,1);break;
+   case 'fryer': box(cx-22,y+18,44,24,'#6a6a72','#2a2a30');R(cx-18,y+14,36,8,'#f0b030');R(cx-12,y+6,2,10,'#59606a');for(let i=0;i<4;i++){const o=(T*10+i*7)%8;R(cx-14+i*9,y+18-o,2,2,'#ffe066')}break;
+   case 'kettle': box(cx-14,y+16,28,22,'#8a96a2','#3b2418');R(cx+14,y+20,10,4,'#8a96a2');R(cx-12,y+10,24,4,'#59606a');steam(cx-8,y+8,2);flame(cx-8,y+44,3,6);break;
+   case 'teapot': box(cx-16,y+18,28,20,'#4a8a5a','#1e3a2a');R(cx+12,y+22,8,4,'#4a8a5a');R(cx-18,y+22,3,10,'#3a6a4a');R(cx-6,y+12,12,6,'#3a6a4a');steam(cx-4,y+10,1);break;
   }
 }
+function outline(x,y,w,h,c,t){R(x,y,w,t,c);R(x,y+h-t,w,t,c);R(x,y,t,h,c);R(x+w-t,y,t,h,c)}
+function card(x,y,w,h,hov,sel){box(x,y,w,h,hov?'#f2e6d0':'#e0d2b8',sel?'#ffd84a':'#3b2418');R(x+2,y+2,w-4,1,'#ffffffaa');R(x+1,y+h-1,w-2,1,'#00000033')}
+
 SC.play={
   update(dt){updatePlay(dt)},
   draw(){
@@ -1158,14 +1349,14 @@ SC.play={
     P.q.forEach((a,i)=>{
       if(a.t==='serve'){if(!cb.has(a.c))cb.set(a.c,[]);cb.get(a.c).push(i+1)}
       else{
-        const key=a.t==='start'?'c:'+a.item:a.t==='step'?'p:'+a.st:a.t==='trash'?'trash':'t:'+a.st+':'+a.k;
+        const key=a.t==='start'?'c:'+a.item:a.t==='restock'?'r:'+a.item:a.t==='step'?'p:'+a.st+':'+(a.variant||''):a.t==='trash'?'trash':'t:'+a.st+':'+a.k;
         (bd[key]=bd[key]||[]).push(i+1);
       }
     });
     // 壁・看板
     R(0,14,W,92,th.wall);for(let x=0;x<W;x+=16)R(x,14,8,92,th.wall2);
     decor(G.up.decor);
-    box(4,24,58,24,'#8a4b25','#3b2418');box(6,26,54,20,th.sign,'#3b2418');
+    box(4,24,58,24,'#5a3a22','#3b2418');box(6,26,54,20,th.sign,'#3b2418');
     txt(th.signA,33,28,th.signA.length>5?7:9,'#fff3d0','center','#3b2418');txt(th.signB,33,37,th.signB.length>3?7:8,'#ffe066','center','#3b2418');
     box(432,22,42,14,P.closed?'#d9392b':'#2f8a3a','#3b2418');txt(P.closed?'CLOSED':'OPEN',453,25,7,'#fff','center');
     // お客さん
@@ -1173,7 +1364,7 @@ SC.play={
     P.slots.forEach(c=>{
       if(!c)return;drawCust(c);
       if(c.state==='wait'){
-        lhit(c.x-30,20,60,88,()=>enqueue({t:'serve',c}));
+        lhit(c.x-30,10,60,98,()=>enqueue({t:'serve',c}));
         badge(c.x+22,66,cb.get(c));
       }
     });
@@ -1209,71 +1400,112 @@ SC.play={
       else if(a.t==='take'){const sl=P.st[a.st][a.k];if(sl&&sl.dish)ic=IT[sl.dish.id].spr}
       else if(a.t==='serve')ic=a.c.spr;
       else if(a.t==='trash'){R(qx+4,qy+4,6,8,'#7a8590');R(qx+3,qy+3,8,2,'#59606a')}
+      else if(a.t==='restock')txt('＋',qx+7,qy+2,10,'#2f8a3a','center');
+      else if(a.t==='step'&&a.variant)ic=IT[a.variant].spr;
       else txt(stName(a.st)[0],qx+7,qy+3,8,'#3b2418','center');
       if(ic)ctx.drawImage(ic,qx+1,qy+1,12,12);
       lhit(qx,qy,14,14,()=>{P.q.splice(i,1);SFX.click()});
       if(inside(qx,qy,14,14))tip='よやくを取り消す';
     });
     // 調理場
-    R(0,150,W,120,'#4a3a35');
+    R(0,150,W,120,'#2a1e24');
     const need={};
     P.hands.forEach(d=>{const s=stepOf(d);if(s)need[s.k==='top'?'top':s.st]=true});
+    const variantList=st=>curItems(P.day).filter(it=>{if(!it.from)return false;const s=it.steps.find(x=>x.choice);return s&&(s.k==='top'?'top':s.st)===st});
     LAYOUT.forEach(l=>{
-      const x0=l.x,pulse=need[l.id]&&Math.floor(T*3)%2;
-      box(x0+1,150,l.w-2,118,'#5e4a43',pulse?'#ffd84a':'#2a1a1e');
-      const col=l.id==='pantry'?'#5a8a3a':l.id==='top'?'#8a5aa8':HEATCOL[l.id];
-      box(x0+3,152,l.w-6,11,col,'#2a1a1e');txt(stName(l.id),x0+l.w/2,153,8,'#fff','center','#2a1a1e');
+      const x0=l.x,w=l.w,pulse=need[l.id]&&Math.floor(T*3)%2;
+      const art=l.id[0]==='h'?heatOf(l.id).a:'';
+      const col=l.id==='pantry'?'#5a7a3a':l.id==='top'?'#8a5aa8':ART_COL[art];
+      // パネルの下地（棚は木、トッピング台はタイル、調理場はステンレス）
+      if(l.id==='pantry'){R(x0+1,150,w-2,118,'#6a4a2a');for(let y=162;y<268;y+=34)R(x0+1,y,w-2,2,'#8a6a3a');for(let y=164;y<268;y+=34)R(x0+1,y+30,w-2,2,'#4a2e16')}
+      else if(l.id==='top'){R(x0+1,150,w-2,118,'#d8dee6');for(let yy=0;yy<118;yy+=11)for(let xx=0;xx<w-2;xx+=11)if(((xx+yy)/11)%2===0)R(x0+1+xx,150+yy,Math.min(11,w-2-xx),Math.min(11,118-yy),'#c4ccd6')}
+      else{R(x0+1,150,w-2,118,'#3a4048');R(x0+1,150,w-2,2,'#5a626c');for(let yy=158;yy<266;yy+=16){R(x0+3,yy,2,2,'#6a727c');R(x0+w-5,yy,2,2,'#6a727c')}}
+      outline(x0+1,150,w-2,118,pulse?'#ffd84a':'#0e0a0e',pulse?2:1);
+      box(x0+3,152,w-6,12,col,'#0e0a0e');txt(stName(l.id),x0+w/2,153,8,'#fff','center','#0e0a0e');
       if(l.id==='pantry'){
-        curItems(P.day).forEach((it,k)=>{
-          const bx=x0+5+(k%4)*35,by=166+Math.floor(k/4)*34;
+        startIds(P.day).forEach((sid,k)=>{
+          const it=IT[sid],bx=x0+5+(k%4)*35,by=168+Math.floor(k/4)*34;
           const hov=inside(bx,by,33,32)&&live;
-          box(bx,by,33,32,hov?'#a8806a':'#7a5a4a','#2a1a1e');
+          card(bx,by,33,32,hov);
           spr(it.spr,bx+4,by+1,1.5);
-          txt(yen(iprice(it)),bx+16,by+25,7,'#ffe066','center','#2a1a1e');
-          lhit(bx,by,33,32,()=>enqueue({t:'start',item:it.id}));
-          if(inside(bx,by,33,32))tip=it.name+'：'+stepsOf(it).map(x=>x.label).join('→');
-          badge(bx+14,by-2,bd['c:'+it.id]);
+          if(fl().stock){
+            const n=P.stock[sid]||0;
+            txt('×'+n,bx+12,by+25,7,n?'#3b2418':'#d9392b','center');
+          }else txt(it.base?it.name:yen(iprice(it)),bx+16,by+25,7,'#3b2418','center');
+          lhit(bx,by,33,32,()=>enqueue({t:'start',item:sid}));
+          if(fl().stock){
+            box(bx+22,by+20,10,10,'#3a8a5a','#1a3a2a');txt('＋',bx+27,by+20,8,'#fff','center');
+            lhit(bx+22,by+20,10,10,()=>enqueue({t:'restock',item:sid}));
+            if(inside(bx+22,by+20,10,10))tip=it.name+'の在庫を補充（+5）';
+          }
+          if(inside(bx,by,33,32)&&!(fl().stock&&inside(bx+22,by+20,10,10)))tip=it.base?it.name+'（とってから、ボタンで選ぶ）':it.name+'：'+stepsOf(it).map(lab).join('→');
+          badge(bx+14,by-2,bd['c:'+sid]);
+          if(fl().stock)badge(bx+14,by+12,bd['r:'+sid]);
         });
       }else if(l.id==='top'){
-        lhit(x0,150,l.w,118,()=>enqueue({t:'step',st:'top'}));
-        // まな板とソース類
-        box(x0+8,212,50,34,'#d9b27a','#8a5a2a');for(let i=0;i<4;i++)R(x0+12+i*11,216,2,26,'#c8a06a');
-        R(x0+14,176,8,18,'#d9392b');R(x0+26,178,8,16,'#f2c14e');R(x0+38,176,8,18,'#3aa06a');
-        R(x0+15,172,6,4,'#fff');R(x0+27,174,6,4,'#fff');R(x0+39,172,6,4,'#fff');
-        R(x0+20,224,6,5,'#3aa04a');R(x0+34,230,5,5,'#d9392b');R(x0+28,238,6,4,'#f2c14e');
-        if(inside(x0,150,l.w,118)&&live)tip='トッピング台（持っている料理を仕上げる）';
-        badge(x0+22,155,bd['p:top']);
+        lhit(x0,150,w,118,()=>enqueue({t:'step',st:'top'}));
+        const vs=variantList('top');
+        if(!vs.length){ // 選ぶトッピングがないステージは、まな板と調味料
+          box(x0+8,212,50,34,'#d9b27a','#8a5a2a');for(let i=0;i<4;i++)R(x0+12+i*11,216,2,26,'#c8a06a');
+          R(x0+14,176,8,18,'#d9392b');R(x0+26,178,8,16,'#f2c14e');R(x0+38,176,8,18,'#3aa06a');
+          R(x0+15,172,6,4,'#fff');R(x0+27,174,6,4,'#fff');R(x0+39,172,6,4,'#fff');
+          R(x0+20,224,6,5,'#3aa04a');R(x0+34,230,5,5,'#d9392b');R(x0+28,238,6,4,'#f2c14e');
+        }else{
+          vs.forEach((it,k)=>{
+            const bx=x0+2+(k%2)*32,by=168+Math.floor(k/2)*31;
+            const hov=inside(bx,by,31,30)&&live;
+            card(bx,by,31,30,hov);spr(it.spr,bx+3,by+3,1.5);
+            lhit(bx,by,31,30,()=>enqueue({t:'step',st:'top',variant:it.id}));
+            if(inside(bx,by,31,30))tip=it.name+'をのせる';
+            badge(bx+10,by-2,bd['p:top:'+it.id]);
+          });
+          R(x0+8,240,50,20,'#d9b27a');R(x0+8,240,50,2,'#8a5a2a');
+        }
+        if(inside(x0,150,w,118)&&live&&!tip)tip=stName('top')+'（持っている料理を仕上げる）';
+        badge(x0+22,155,bd['p:top:']);
       }else{
-        lhit(x0,150,l.w,118,()=>enqueue({t:'step',st:l.id}));
-        if(inside(x0,150,l.w,118)&&live)tip=stName(l.id)+'（入れる／できあがりを待って取り出す）';
-        drawAppliance(l.id,x0,l.w);
-        const slots=P.st[l.id],n=slots.length,cols=n<=2?Math.max(1,n):3,size=n<=2?28:20,gap=n<=2?4:3;
-        const total=Math.min(n,cols)*size+(Math.min(n,cols)-1)*gap,sx=Math.round(x0+(l.w-total)/2);
-        badge(x0+4,155,bd['p:'+l.id]);
+        lhit(x0,150,w,118,()=>enqueue({t:'step',st:l.id}));
+        const slots=P.st[l.id],n=slots.length,vs=variantList(l.id);
+        const cols=n<=2?n:2,size=n<=2?28:18,gap=n<=2?4:3,rowsN=Math.ceil(n/cols);
+        const total=cols*size+(cols-1)*gap,sx=Math.round(x0+(w-total)/2);
+        const artY=n<=2?204:212;
+        if(vs.length)ctx.globalAlpha=.35;
+        drawApp(art,x0+w/2,artY);ctx.globalAlpha=1;
+        badge(x0+4,155,bd['p:'+l.id+':']);
         slots.forEach((sl,k)=>{
-          const bx=sx+(k%cols)*(size+gap),by=166+Math.floor(k/cols)*(size+3),ic=size-4;
-          const it=IT[sl.item];
-          box(bx,by,size,size,'#3a2c2a','#1e1214');
-          if(!sl.dish){ctx.globalAlpha=.22;spr(it.sprGray,bx+2,by+2,ic/16);ctx.globalAlpha=1;} // この台は、この料理の専用
-          else{
-            const stp=stepOf(sl.dish);
+          const bx=sx+(k%cols)*(size+gap),by=168+Math.floor(k/cols)*(size+3),ic=size-4;
+          box(bx,by,size,size,'#14181e','#05070a');
+          if(sl.dish){
+            const it=IT[sl.dish.id],stp=stepOf(sl.dish);
             if(sl.state==='cook'){
               const f=Math.min(1,sl.p/stepTime(stp,it));
               drawDish(sl.dish,bx+2,by+2,ic,f);
-              R(bx+2,by+size-5,size-4,3,'#1e1214');R(bx+2,by+size-5,Math.round((size-4)*f),3,'#6fd36a');
+              R(bx+2,by+size-4,size-4,3,'#1e1214');R(bx+2,by+size-4,Math.round((size-4)*f),3,'#6fd36a');
             }else if(sl.state==='ready'){
               const bb=Math.round(Math.abs(Math.sin(T*6))*2);
               drawDish(sl.dish,bx+2,by+2-bb,ic,1);
-              if(burnable(l.id)){const f=1-sl.rt/8;R(bx+2,by+size-5,size-4,3,'#1e1214');R(bx+2,by+size-5,Math.max(0,Math.round((size-4)*f)),3,f>.5?'#6fd36a':f>.25?'#ffd84a':'#ff5a4a')}
-              if(Math.floor(T*4)%2)txt('✦',bx+size-5,by-4,8,'#ffe066','center');
+              if(burnable(l.id)&&!stp.batch){const f=1-sl.rt/8;R(bx+2,by+size-4,size-4,3,'#1e1214');R(bx+2,by+size-4,Math.max(0,Math.round((size-4)*f)),3,f>.5?'#6fd36a':f>.25?'#ffd84a':'#ff5a4a')}
+              if(sl.left>1)txt('×'+sl.left,bx+size,by-1,8,'#ffe066','right','#000');
+              else if(Math.floor(T*4)%2)txt('✦',bx+size-4,by-5,8,'#ffe066','center');
             }else{
               spr(it.sprBurnt,bx+2,by+2,ic/16);txt('×',bx+size/2,by+2,14,'#ff5a4a','center','#000');
             }
             lhit(bx,by,size,size,()=>enqueue({t:'take',st:l.id,k}));
+            if(inside(bx,by,size,size))tip=sl.state==='burnt'?'こげてる！ タップですてに行く':sl.state==='ready'?it.name+'（タップで取り出す）':it.name+' 調理中…（タップで完成を待つ）';
             badge(bx,by+size-8,bd['t:'+l.id+':'+k]);
           }
-          if(inside(bx,by,size,size))tip=!sl.dish?it.name+'の専用作業台':sl.state==='burnt'?'こげてる！ タップですてに行く':sl.state==='ready'?it.name+'（タップで取り出す）':it.name+' 調理中…（タップで完成を待つ）';
         });
+        // 選ぶボタン（ドリンクの味・ソース・ネタなど）
+        const vy=n<=2?200:212,ch=n<=2?29:28;
+        vs.forEach((it,k)=>{
+          const bx=x0+2+(k%2)*32,by=vy+Math.floor(k/2)*(ch+1);
+          const hov=inside(bx,by,31,ch)&&live;
+          card(bx,by,31,ch,hov);spr(it.spr,bx+3,by+2,1.5);
+          lhit(bx,by,31,ch,()=>enqueue({t:'step',st:l.id,variant:it.id}));
+          if(inside(bx,by,31,ch))tip=it.name+'を作る（ボタンで選ぶ）';
+          badge(bx+8,by-2,bd['p:'+l.id+':'+it.id]);
+        });
+        if(!vs.length&&inside(x0,150,w,118)&&live&&!tip)tip=stName(l.id)+'（入れる／できあがりを待って取り出す）';
       }
     });
     // ヒント・ツールチップ
@@ -1285,17 +1517,20 @@ SC.play={
     drawHUD(live,lhit);
     // オーバーレイ
     if(P.count>0){
-      R(0,100,W,70,'#000000aa');
-      if(P.count>1.1){txt(th.name+'  DAY '+P.day,240,112,20,'#ffe066','center','#3b2418');txt('目標 '+yen(P.goal),240,146,11,'#fff','center','#3b2418')}
-      else txt('スタート！',240,122,26,'#fff','center','#d9392b');
+      R(0,96,W,84,'#000000bb');
+      if(P.count>1.2){
+        txt(th.name+'  DAY '+P.day,240,102,16,'#ffe066','center','#3b2418');txt('目標 '+yen(P.goal),240,124,10,'#fff','center','#3b2418');
+        wrap('ギミック: '+th.gimmick,420,8).slice(0,2).forEach((l,i)=>txt(l,240,142+i*11,8,'#9affb0','center','#0e0a0e'));
+      }else txt('スタート！',240,122,26,'#fff','center','#d9392b');
     }
     if(P.closed&&P.banner>0){R(0,100,W,56,'#000000aa');txt('閉店！',240,106,26,'#ffe066','center','#d9392b');txt('のこりのお客さんには、料理を届けよう',240,140,10,'#fff','center','#3b2418')}
     else if(P.closed&&P.over>0){R(0,108,W,40,'#000000aa');txt('おつかれさま！',240,116,22,'#fff','center','#3b2418')}
     if(P.paused){
-      R(0,0,W,H,'#000000bb');txt('ポーズ中',240,80,22,'#fff','center','#3b2418');
-      button(170,120,140,24,'つづける',()=>{P.paused=false});
-      button(170,152,140,24,'あきらめる',()=>{toShop(true)},{col:'#8a4a5a'});
-      button(170,184,140,24,'ゲーム一覧へ',goList,{col:'#6a5a7a'});
+      R(0,0,W,H,'#000000bb');txt('ポーズ中',240,70,22,'#fff','center','#3b2418');
+      wrap('ギミック: '+th.gimmick,380,8).slice(0,2).forEach((l,i)=>txt(l,240,98+i*11,8,'#9affb0','center','#0e0a0e'));
+      button(170,125,140,24,'つづける',()=>{P.paused=false});
+      button(170,157,140,24,'あきらめる',()=>{toShop(true)},{col:'#8a4a5a'});
+      button(170,189,140,24,'ゲーム一覧へ',goList,{col:'#6a5a7a'});
     }
   }
 };
@@ -1305,8 +1540,8 @@ function clockStr(){
 }
 function drawHUD(live,lhit){
   R(0,0,W,14,'#2a1a2e');R(0,13,W,1,'#5a3a6a');
-  txt('DAY '+P.day,6,3,8,'#ffd84a');
-  const bx=44,bw=150,sc=P.goal*1.8,f=Math.max(0,Math.min(1,P.money/sc));
+  txt('S'+G.stage+' DAY '+P.day,6,3,8,'#ffd84a');
+  const bx=64,bw=134,sc=P.goal*1.8,f=Math.max(0,Math.min(1,P.money/sc));
   R(bx,3,bw,8,'#000');R(bx+1,4,bw-2,6,'#3a2a3e');
   R(bx+1,4,Math.round((bw-2)*f),6,P.money>=P.goal*1.4?'#ffd84a':P.money>=P.goal?'#6fd36a':'#f7931e');
   R(bx+Math.round(bw*P.goal/sc),2,1,10,'#fff');R(bx+Math.round(bw*P.goal*1.4/sc),2,1,10,'#fff');
@@ -1330,7 +1565,7 @@ SC.title={
     txt('ケンタの',240,24,12,'#ffe066','center','#5a2a12');
     txt('レストラン物語',240,38,22,'#fff3d0','center','#5a2a12');
     txt('〜 インドから世界一へ 〜',240,66,10,'#ffe066','center','#5a2a12');
-    const all=[ITEMS[0],ITEMS[2],ITEMS[4],ITEMS[11],ITEMS[13],ITEMS[15],ITEMS[19],ITEMS[20],ITEMS[22],ITEMS[24]];
+    const all=['kebab','lassi','curry','gapao','pho','margherita','maguro','burger','steak','brulee'].map(id=>IT[id]);
     all.forEach((it,i)=>{const x=40+i*40,b=Math.round(Math.abs(Math.sin(T*3+i*.6))*6);spr(it.spr,x,150-b,2)});
     ctx.fillStyle='#00000030';all.forEach((it,i)=>{ctx.beginPath();ctx.ellipse(56+i*40,186,14,3,0,0,7);ctx.fill()});
     drawChar('boy',240,238,4,{joy:true,talk:true});
@@ -1348,28 +1583,28 @@ SC.sprites={draw(){R(0,0,W,H,'#ccc');ITEMS.forEach((it,i)=>{spr(it.spr,6+(i%9)*5
 // 帳簿。家賃・人件費・光熱費は「店ごとの実額」の固定費で、売上が少ない日は赤字になり、貯金から引かれる。
 // 貯金が尽きると借金になる（借金中は機械のアップグレードができない）。
 function calcLedger(){
-  const f=stg().fin,c=P.cooks,wage=1100;
-  const labor=Math.round(f.hours*wage/10)*10,rent=Math.round(f.rent/30/10)*10;
+  const f=finOf(),c=P.cooks,wage=1100;
+  const labor=Math.round(f.hours*wage/10)*10,rent=f.rent;
   const gas=f.gas+((c.h1||0)+(c.h2||0)+(c.h3||0))*6;
   const misc=f.misc+P.served*18;
   const gross=P.money+P.waste;
   const L={
     dish:P.dish,tips:P.tips,bonus:Math.max(0,gross-P.dish-P.tips),waste:P.waste,sales:P.money,
-    mat:P.mat,labor,hours:f.hours,wage,rent,monthly:f.rent,elec:f.elec,gas,water:f.water,util:f.elec+gas+f.water,misc
+    mat:P.mat,labor,hours:f.hours,wage,rent,monthly:f.monthly,elec:f.elec,gas,water:f.water,util:f.elec+gas+f.water,misc
   };
   L.exp=L.mat+L.labor+L.rent+L.util+L.misc;
   L.net=L.sales-L.exp;
   return L;
 }
 // 1日あたりの固定費（家賃・人件費・光熱費・雑費）
-function fixedDaily(){const f=stg().fin;return Math.round(f.rent/30+f.hours*1100+f.elec+f.gas+f.water+f.misc)}
+function fixedDaily(){const f=finOf();return Math.round(f.rent+f.hours*1100+f.elec+f.gas+f.water+f.misc)}
 let RS=null;
 function showResult(){
   const win=P.money>=P.goal,stars=P.money>=P.goal*1.8?3:P.money>=P.goal*1.4?2:win?1:0;
   RS={win,stars,money:P.money,goal:P.goal,served:P.served,lost:P.lost,combo:P.maxCombo,day:P.day,t:0,L:calcLedger(),stageClear:false,stage:G.stage};
   if(win){
     G.cash=G.cash+RS.L.net;G.day=P.day+1;
-    if(P.day>=stg().days){G.stageClear=true;RS.stageClear=true;RS.prize=stg().fin.prize;G.cash+=RS.prize}
+    if(P.day>=stg().days){G.stageClear=true;RS.stageClear=true;RS.prize=finOf().prize;G.cash+=RS.prize}
     saveGame();SFX.fanfare();
   }else SFX.bad();
   scene='result';
@@ -1427,7 +1662,8 @@ function toShop(){scene='shop'}
 let shopTab=0,shopSel=null;
 // そのステージで営業を終えた日数。強化はこれが増えるほど少しずつ解放される
 const daysDone=()=>Math.max(0,Math.min(G.day-1,stg().days));
-const upgradable=()=>ITEMS.filter(it=>it.stage===G.stage&&it.day<=daysDone());
+const upgradable=()=>menuAt(G.stage,daysDone());
+const menuDay=id=>STAGES[G.stage-1].menu.find(m=>m[0]===id)[1];
 const ITEM_UP_NEED=[0,2,4]; // 料理が解禁されてから、Lv1/Lv2/Lv3 が買えるまでの日数
 function goNext(){
   if(G.stageClear){
@@ -1474,8 +1710,8 @@ SC.shop={
         box(156,44,310,194,'#4a3652','#1e1214');
         spr(it.spr,160,46,1.5);
         txt(it.name,190,48,10,'#ffe066','left','#1e1214');
-        txt(stepsOf(it).map(x=>x.label).join(' → '),190,62,7,'#d8c8e0','left',null,false);
-        UP_TXT[it.id].forEach((u,i)=>{
+        txt(stepsOf(it).map(lab).join(' → '),190,62,7,'#d8c8e0','left',null,false);
+        [0,1,2].map(i=>upText(it,i)).forEach((u,i)=>{
           const y=76+i*54,e=UP_EFF[kind][i],done=lv>i,next=lv===i;
           box(160,y,302,50,done?'#3a5a44':'#5e4a63','#1e1214');
           txt('Lv'+(i+1),166,y+4,8,done?'#9affb0':'#ffd84a');
@@ -1484,7 +1720,7 @@ SC.shop={
           txt(effText(e),166,y+37,7,'#ffe066','left',null,true);
           const c=itemUpCost(it,i);
           if(done)button(398,y+14,58,22,'導入済み',()=>{},{disabled:true,sz:7,col:'#3a8a5a'});
-          else if(next){const wait=ITEM_UP_NEED[i]-(daysDone()-it.day);const lock=wait>0;button(398,y+14,58,22,lock?'あと'+wait+'日':yen(c),()=>{G.cash-=c;G.itemUp[it.id]=lv+1;saveGame();SFX.coin()},{disabled:lock||G.cash<c,sz:8,col:'#3a8a5a'})}
+          else if(next){const wait=ITEM_UP_NEED[i]-(daysDone()-menuDay(it.id));const lock=wait>0;button(398,y+14,58,22,lock?'あと'+wait+'日':yen(c),()=>{G.cash-=c;G.itemUp[it.id]=lv+1;saveGame();SFX.coin()},{disabled:lock||G.cash<c,sz:8,col:'#3a8a5a'})}
           else button(398,y+14,58,22,'まだ',()=>{},{disabled:true,sz:8});
         });
       }
@@ -1507,7 +1743,7 @@ SC.ending={
     box(40,14,400,60,'#8a4b25','#3b2418');box(44,18,392,52,'#b8662f','#3b2418');
     txt('世界一の料理人！',240,22,20,'#fff3d0','center','#5a2a12');
     txt('ケンタのレストラン物語  おしまい',240,50,10,'#ffe066','center','#5a2a12');
-    ITEMS.forEach((it,i)=>{const b=Math.round(Math.abs(Math.sin(T*3+i*.5))*4);spr(it.spr,6+(i%14)*33,92-b+Math.floor(i/14)*30,1.5)});
+    ITEMS.filter(it=>!it.base).filter((it,i)=>i%2===0).slice(0,28).forEach((it,i)=>{const b=Math.round(Math.abs(Math.sin(T*3+i*.5))*4);spr(it.spr,6+(i%14)*33,92-b+Math.floor(i/14)*30,1.5)});
     drawChar('boy',150,226,5,{joy:true,talk:true});drawChar('dad',330,226,5,{ok:true});
     txt('プレイしてくれて ありがとう！',240,160,10,'#3b2418','center','#fff');
     button(100,238,120,24,'タイトルへ',()=>{scene='title'},{sz:10});
