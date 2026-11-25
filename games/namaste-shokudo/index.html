@@ -348,12 +348,12 @@ function calcGoal(d){
   return Math.max(500,Math.round(c.dur/c.interval*avg*k*.42/100)*100);
 }
 const UPS=[
- {id:'cap',  name:'キッチン拡張',     desc:'各調理場の同時調理数 +1',      cost:[6000]},
- {id:'tray', name:'お盆',             desc:'持てる料理の数 +1（最大4つ）', cost:[6000,12000]},
- {id:'walk', name:'ダッシュ特訓',     desc:'歩くスピード +20%',            cost:[3500,7000,12000]},
- {id:'pat',  name:'おもてなし',       desc:'お客さんの待ち時間 +15%',      cost:[3000,6500,11000]},
- {id:'spd',  name:'スパイス修行',     desc:'全メニューの調理時間 -12%',    cost:[4000,8000,13000]},
- {id:'decor',name:'お店のリフォーム', desc:'お店がきれいに & チップ +10%', cost:[5000,10000,18000,30000]},
+ {id:'cap',  name:'キッチン拡張',     desc:'各調理場の同時調理数 +1',      cost:[15000],need:[4]},
+ {id:'tray', name:'お盆',             desc:'持てる料理の数 +1（最大4つ）', cost:[15000,30000],need:[2,5]},
+ {id:'walk', name:'ダッシュ特訓',     desc:'歩くスピード +20%',            cost:[9000,18000,30000],need:[3,6,9]},
+ {id:'pat',  name:'おもてなし',       desc:'お客さんの待ち時間 +15%',      cost:[7500,16000,27000],need:[3,6,9]},
+ {id:'spd',  name:'スパイス修行',     desc:'全メニューの調理時間 -12%',    cost:[10000,20000,32000],need:[4,7,10]},
+ {id:'decor',name:'お店のリフォーム', desc:'お店がきれいに & チップ +10%', cost:[12500,25000,45000,75000],need:[2,4,6,8]},
 ];
 const capOf=()=>2+G.up.cap;
 const QMAX=6;
@@ -362,7 +362,8 @@ const handsMax=()=>2+(G.up.tray||0);
 const ilv=id=>(G.itemUp&&G.itemUp[id])||0;
 const iprice=it=>Math.round(it.price*(1+.15*ilv(it.id))/10)*10;
 const wasteCost=it=>Math.round(iprice(it)*.4/10)*10;
-const itemUpCost=(it,lv)=>Math.round(it.price*[2.5,5,8][lv]/100)*100;
+const itemUpCost=(it,lv)=>Math.round(it.price*[6.5,13,20][lv]/100)*100;
+const ITEM_UP_NEED=[0,2,4]; // 料理が解禁されてから、Lv1/Lv2/Lv3 が買えるまでの営業日数
 const SLOT_X=[104,196,288,380];
 
 /* ---------- シーン管理 ---------- */
@@ -934,7 +935,9 @@ SC.result={
 /* ===== ショップ ===== */
 function toShop(){scene='shop'}
 let shopTab=0;
-const unlockedForUp=()=>ITEMS.filter(it=>it.day<=Math.max(1,Math.min(G.day-1,10)));
+// 営業を終えた日数。強化はこれが増えるほど少しずつ解放される
+const daysDone=()=>Math.max(0,Math.min(G.day-1,10));
+const unlockedForUp=()=>ITEMS.filter(it=>it.day<=daysDone());
 SC.shop={
   draw(){
     R(0,0,W,H,'#3a2438');for(let x=0;x<W;x+=24)R(x,0,12,H,'#40283e');
@@ -942,6 +945,7 @@ SC.shop={
     txt('所持金 '+yen(G.cash),460,8,12,'#fff','right','#3b2418');
     button(14,26,92,14,'お店',()=>{shopTab=0},{sz:8,col:shopTab===0?'#e8742a':'#5a3a6a'});
     button(110,26,92,14,'メニュー',()=>{shopTab=1},{sz:8,col:shopTab===1?'#e8742a':'#5a3a6a'});
+    txt('強化は、営業日数が増えると少しずつ解放されるよ',212,30,8,'#d8c8e0','left',null,false);
     if(shopTab===0){
       UPS.forEach((u,i)=>{
         const y=46+i*31,lv=G.up[u.id]||0,max=u.cost.length;
@@ -949,7 +953,7 @@ SC.shop={
         txt(u.name,24,y+3,9,'#fff');txt(u.desc,24,y+16,8,'#d8c8e0','left',null,false);
         for(let k=0;k<max;k++)R(262+k*12,y+10,9,9,k<lv?'#ffd84a':'#2a1a2e');
         if(lv>=max)button(366,y+4,90,21,'MAX',()=>{},{disabled:true,sz:9});
-        else{const c=u.cost[lv];button(366,y+4,90,21,yen(c),()=>{G.cash-=c;G.up[u.id]=lv+1;saveGame();SFX.coin()},{disabled:G.cash<c,sz:9,col:'#3a8a5a'})}
+        else{const c=u.cost[lv],lock=daysDone()<u.need[lv];button(366,y+4,90,21,lock?'あと'+(u.need[lv]-daysDone())+'日':yen(c),()=>{G.cash-=c;G.up[u.id]=lv+1;saveGame();SFX.coin()},{disabled:lock||G.cash<c,sz:9,col:'#3a8a5a'})}
       });
     }else{
       txt('メニューを磨くと 値段 +15% ＆ 調理時間 -8%（Lv3まで）',16,44,8,'#d8c8e0','left',null,false);
@@ -961,7 +965,7 @@ SC.shop={
         for(let k=0;k<3;k++)R(x+118+k*8,y+4,6,6,k<lv?'#ffd84a':'#2a1a2e');
         txt(yen(iprice(it))+'  '+cookTime(it).toFixed(1)+'秒',x+30,y+16,7,'#d8c8e0','left',null,false);
         if(lv>=3)button(x+148,y+3,68,22,'MAX',()=>{},{disabled:true,sz:8});
-        else{const c=itemUpCost(it,lv);button(x+148,y+3,68,22,yen(c),()=>{G.cash-=c;G.itemUp[it.id]=lv+1;saveGame();SFX.coin()},{disabled:G.cash<c,sz:8,col:'#3a8a5a'})}
+        else{const c=itemUpCost(it,lv),wait=ITEM_UP_NEED[lv]-(daysDone()-it.day),lock=wait>0;button(x+148,y+3,68,22,lock?'あと'+wait+'日':yen(c),()=>{G.cash-=c;G.itemUp[it.id]=lv+1;saveGame();SFX.coin()},{disabled:lock||G.cash<c,sz:8,col:'#3a8a5a'})}
       });
     }
     const next=Math.min(G.day,10);
